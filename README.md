@@ -1,6 +1,6 @@
 # solana-pay-mcp
 
-**Stripe agent toolkit, but USDC on Solana, no bank.**
+**Stripe agent toolkit, but USDC on Solana.**
 
 An MCP server that lets Claude (Claude Code, Claude Desktop, Cursor, any MCP client) invoice, get paid, and pay in USDC on Solana.
 

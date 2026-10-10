@@ -2,7 +2,7 @@
 
 Record with Claude Code on the left, Phantom (devnet) on the phone, Solana Explorer on the right.
 
-0:00  Title card: "Stripe agent toolkit, but USDC on Solana, no bank."
+0:00  Title card: "Stripe agent toolkit, but USDC on Solana."
 0:10  Terminal: `claude mcp add solana-pay -e SOLANA_PAY_RECIPIENT=<wallet> -e SOLANA_CLUSTER=devnet -- solana-pay-mcp`
 0:25  Claude Code: "Invoice Acme 1.5 USDC for the October retainer."
       → tool call create_invoice → link + QR appear.

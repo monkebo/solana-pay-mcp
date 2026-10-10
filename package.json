@@ -1,7 +1,7 @@
 {
   "name": "solana-pay-mcp",
   "version": "0.1.0",
-  "description": "MCP server that lets Claude invoice, get paid, and pay in USDC on Solana. Stripe agent toolkit, but USDC on Solana, no bank.",
+  "description": "MCP server that lets Claude invoice, get paid, and pay in USDC on Solana. Stripe agent toolkit, but USDC on Solana.",
   "license": "MIT",
   "type": "module",
   "bin": {
