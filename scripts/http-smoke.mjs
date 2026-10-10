@@ -1,0 +1,11 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+const url = process.argv[2];
+const c = new Client({ name: "smoke", version: "0" });
+await c.connect(new StreamableHTTPClientTransport(new URL(url)));
+const t = async (n, a) => (await c.callTool({ name: n, arguments: a })).content[0].text;
+console.log((await c.listTools()).tools.map(x => x.name).join(", "));
+console.log(await t("wallet_status", {}));
+console.log(await t("send_payment", { to: "bohdan", amount: "0.5", memo: "first payment from Claude", confirm: true }));
+console.log(await t("send_payment", { to: "dev", amount: "0.01", token: "SOL", memo: "first SOL from Claude", confirm: true }));
+await c.close();
