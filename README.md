@@ -40,7 +40,9 @@ Or in `claude_desktop_config.json` / `.mcp.json`:
 | Tool | What it does |
 |---|---|
 | `create_invoice(amount, memo)` | Invoice to `SOLANA_PAY_RECIPIENT`. Returns Solana Pay link, QR, id. |
-| `send_payment(to, amount, memo)` | Pay someone. Returns a link/QR you open in your wallet. |
+| `send_payment(to, amount, memo, confirm?)` | Pay a contact or address. With an agent signer: preview, then `confirm=true` sends. Without: link/QR for your own wallet. |
+| `pay_many(payments[], confirm?)` | Batch: payroll, bounties, splits. Preview, then `confirm=true`. One tx per recipient. |
+| `add_contact(name, address)` / `list_contacts()` | Save `kevin → <address>` so you can say "pay kevin 5 USDC". |
 | `check_payment(id)` | Finds the on-chain USDC transfer for an invoice or payment. |
 | `list_requests()` | Everything this server created, with paid status. |
 
@@ -53,8 +55,8 @@ Each request carries a fresh `reference` public key. Wallets attach it to the tr
 | Env | Default | Meaning |
 |---|---|---|
 | `SOLANA_PAY_RECIPIENT` | required | Wallet that receives invoices |
-| `SOLANA_PAY_SIGNER` | Path to the agent keypair from `solana-pay-mcp keygen`. Set it and Claude pays itself; unset, you get a QR for your own wallet. |
-| `SOLANA_PAY_DAILY_CAP` | Max USDC the agent wallet may send per 24h. Default 10. |
+| `SOLANA_PAY_SIGNER` | unset | Agent keypair from `solana-pay-mcp keygen`. Set: Claude pays itself. Unset: QR for your own wallet. |
+| `SOLANA_PAY_DAILY_CAP` | `10` | Max USDC the agent wallet may send per 24h |
 | `SOLANA_CLUSTER` | `devnet` | `devnet` or `mainnet` |
 | `SOLANA_RPC_URL` | public RPC | Helius, Triton, etc. |
 | `SOLANA_PAY_MCP_HOME` | `~/.solana-pay-mcp` | Where requests are stored (JSON) |
