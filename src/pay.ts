@@ -19,6 +19,7 @@ export interface PaymentRequest {
   createdAt: string;
   paidTx?: string;
   paidAt?: string;
+  matchedBy?: "reference" | "inflow";
 }
 
 /** Solana Pay transfer-request URL. Any wallet (Phantom, Solflare, Backpack) opens it. */

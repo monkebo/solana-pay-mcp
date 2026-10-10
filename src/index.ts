@@ -112,13 +112,16 @@ server.registerTool(
     if (!req.paidTx) {
       const found = await findPayment(req);
       if (found) {
+        req.matchedBy = found.matchedBy;
         req.paidTx = found.tx;
         req.paidAt = found.blockTime ? new Date(found.blockTime * 1000).toISOString() : new Date().toISOString();
         store.put(req);
       }
     }
     const text = req.paidTx
-      ? `PAID. ${req.amount} USDC to ${req.recipient} at ${req.paidAt}.\n${explorerUrl(req.paidTx)}`
+      ? `PAID. ${req.amount} USDC to ${req.recipient} at ${req.paidAt}` +
+        (req.matchedBy === "inflow" ? " (matched by inflow: the wallet dropped the reference key)" : "") +
+        `.\n${explorerUrl(req.paidTx)}`
       : `UNPAID. No USDC transfer of ${req.amount} to ${req.recipient} found yet (reference ${req.reference}).`;
     return { content: [{ type: "text", text }], structuredContent: { ...req, paid: Boolean(req.paidTx) } };
   },

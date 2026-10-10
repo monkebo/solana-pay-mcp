@@ -29,19 +29,35 @@ export async function newReference(): Promise<string> {
 
 const rpc = () => createSolanaRpc(rpcUrl());
 
-/** Scan transactions that mention the reference key; return the first one that pays the request. */
-export async function findPayment(req: PaymentRequest): Promise<{ tx: string; blockTime: number | null } | null> {
+type Found = { tx: string; blockTime: number | null; matchedBy: "reference" | "inflow" };
+
+async function scan(req: PaymentRequest, account: string, limit: number, notBefore: number): Promise<Found | null> {
   const r = rpc();
-  const sigs = await r.getSignaturesForAddress(address(req.reference), { limit: 20 }).send();
+  const sigs = await r.getSignaturesForAddress(address(account), { limit }).send();
   for (const s of sigs) {
+    if (s.blockTime !== null && Number(s.blockTime) < notBefore) break; // list is newest first
     const tx = await r
       .getTransaction(s.signature, { maxSupportedTransactionVersion: 1, encoding: "jsonParsed" })
       .send();
     if (tx?.meta && isPaid(tx.meta, req)) {
-      return { tx: s.signature, blockTime: tx.blockTime === null ? null : Number(tx.blockTime) };
+      return {
+        tx: s.signature,
+        blockTime: tx.blockTime === null ? null : Number(tx.blockTime),
+        matchedBy: account === req.reference ? "reference" : "inflow",
+      };
     }
   }
   return null;
+}
+
+/**
+ * 1. Exact: a transaction that carries the request's reference key (wallets that honour Solana Pay).
+ * 2. Fallback: any USDC inflow to the recipient of at least the amount, after the request was created
+ *    (wallets that drop the reference, or a manual transfer). Labelled "inflow" so the caller can say so.
+ */
+export async function findPayment(req: PaymentRequest): Promise<Found | null> {
+  const createdAt = Math.floor(Date.parse(req.createdAt) / 1000) - 60;
+  return (await scan(req, req.reference, 20, 0)) ?? (await scan(req, req.recipient, 50, createdAt));
 }
 
 export function explorerUrl(tx: string): string {
