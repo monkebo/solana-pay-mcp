@@ -7,12 +7,15 @@ export const USDC_MINT: Record<Cluster, string> = {
   mainnet: "EPjFWdd5AufqSSqeM2qN1xqybapC8G4wEGGkZwyTDt1v",
 };
 export const USDC_DECIMALS = 6;
+export type Token = "USDC" | "SOL";
+export const DECIMALS: Record<Token, number> = { USDC: 6, SOL: 9 };
 
 export interface PaymentRequest {
   id: string;
   kind: "invoice" | "payment";
   recipient: string; // wallet that must receive the USDC
   amount: string; // decimal string, e.g. "3000" or "12.50"
+  token?: Token; // default USDC; SOL only for outgoing payments
   memo: string;
   reference: string; // fresh public key, attached to the tx so we can find it
   cluster: Cluster;
@@ -35,19 +38,19 @@ export function solanaPayUrl(req: PaymentRequest, label = "solana-pay-mcp"): str
   return `solana:${req.recipient}?${q.toString()}`;
 }
 
-/** "12.5" -> 12500000n. Rejects more than 6 decimals or non-numeric input. */
-export function toBaseUnits(amount: string): bigint {
-  const m = /^(\d+)(?:\.(\d{1,6}))?$/.exec(amount.trim());
-  if (!m) throw new Error(`bad USDC amount: ${amount}`);
+/** "12.5" -> 12500000n (USDC) or 12500000000n (SOL). Rejects too many decimals or non-numeric input. */
+export function toBaseUnits(amount: string, decimals = USDC_DECIMALS): bigint {
+  const m = new RegExp(`^(\\d+)(?:\\.(\\d{1,${decimals}}))?$`).exec(amount.trim());
+  if (!m) throw new Error(`bad amount: ${amount}`);
   const whole = m[1];
-  const frac = (m[2] ?? "").padEnd(USDC_DECIMALS, "0");
-  return BigInt(whole) * 10n ** BigInt(USDC_DECIMALS) + BigInt(frac);
+  const frac = (m[2] ?? "").padEnd(decimals, "0");
+  return BigInt(whole) * 10n ** BigInt(decimals) + BigInt(frac);
 }
 
-export function fromBaseUnits(units: bigint): string {
-  const s = units.toString().padStart(USDC_DECIMALS + 1, "0");
-  const whole = s.slice(0, -USDC_DECIMALS);
-  const frac = s.slice(-USDC_DECIMALS).replace(/0+$/, "");
+export function fromBaseUnits(units: bigint, decimals = USDC_DECIMALS): string {
+  const s = units.toString().padStart(decimals + 1, "0");
+  const whole = s.slice(0, -decimals);
+  const frac = s.slice(-decimals).replace(/0+$/, "");
   return frac ? `${whole}.${frac}` : whole;
 }
 

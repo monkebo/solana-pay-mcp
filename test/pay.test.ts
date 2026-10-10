@@ -95,3 +95,11 @@ describe("contacts", () => {
     expect(() => c.resolve("nico")).toThrow(/Unknown contact/);
   });
 });
+
+describe("SOL amounts", () => {
+  it("uses 9 decimals for SOL", () => {
+    expect(toBaseUnits("1.5", 9)).toBe(1_500_000_000n);
+    expect(fromBaseUnits(1_500_000_000n, 9)).toBe("1.5");
+    expect(() => toBaseUnits("0.0000000001", 9)).toThrow();
+  });
+});

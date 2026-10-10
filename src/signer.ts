@@ -22,7 +22,8 @@ import {
   TOKEN_PROGRAM_ADDRESS,
 } from "@solana-program/token";
 import { getAddMemoInstruction } from "@solana-program/memo";
-import { type PaymentRequest, USDC_DECIMALS, USDC_MINT, toBaseUnits, fromBaseUnits } from "./pay.js";
+import { getTransferSolInstruction } from "@solana-program/system";
+import { type PaymentRequest, type Token, DECIMALS, USDC_DECIMALS, USDC_MINT, toBaseUnits, fromBaseUnits } from "./pay.js";
 import { rpcUrl } from "./solana.js";
 import * as store from "./store.js";
 
@@ -32,8 +33,11 @@ export function signerPath(): string | undefined {
   return process.env.SOLANA_PAY_SIGNER;
 }
 
-export function dailyCapUnits(): bigint {
-  return toBaseUnits(process.env.SOLANA_PAY_DAILY_CAP ?? "10");
+/** USDC cap: SOLANA_PAY_DAILY_CAP (default 10). SOL cap: SOLANA_PAY_DAILY_CAP_SOL (default 1). */
+export function dailyCapUnits(token: Token = "USDC"): bigint {
+  return token === "SOL"
+    ? toBaseUnits(process.env.SOLANA_PAY_DAILY_CAP_SOL ?? "1", DECIMALS.SOL)
+    : toBaseUnits(process.env.SOLANA_PAY_DAILY_CAP ?? "10");
 }
 
 /** `solana-pay-mcp keygen`: write a new keypair (0600) and print its address. Never prints the secret. */
@@ -59,13 +63,13 @@ export async function signerAddress(): Promise<Address> {
   return (await loadSigner()).address;
 }
 
-/** USDC the signer has sent in the last 24h, from our own records. */
-export function spentLast24h(): bigint {
+/** What the signer has sent in the last 24h for this token, from our own records. */
+export function spentLast24h(token: Token = "USDC"): bigint {
   const since = Date.now() - 24 * 3600 * 1000;
   return store
     .all()
-    .filter((r) => r.kind === "payment" && r.paidTx && r.matchedBy === "signer" && Date.parse(r.paidAt!) >= since)
-    .reduce((acc, r) => acc + toBaseUnits(r.amount), 0n);
+    .filter((r) => r.kind === "payment" && r.paidTx && r.matchedBy === "signer" && (r.token ?? "USDC") === token && Date.parse(r.paidAt!) >= since)
+    .reduce((acc, r) => acc + toBaseUnits(r.amount, DECIMALS[token]), 0n);
 }
 
 export interface Executed {
@@ -76,12 +80,14 @@ export interface Executed {
 
 /** Build, simulate, sign and send a USDC transfer for `req`. Enforces the daily cap first. */
 export async function execute(req: PaymentRequest): Promise<Executed> {
-  const amount = toBaseUnits(req.amount);
-  const cap = dailyCapUnits();
-  const spent = spentLast24h();
+  const token: Token = req.token ?? "USDC";
+  const dec = DECIMALS[token];
+  const amount = toBaseUnits(req.amount, dec);
+  const cap = dailyCapUnits(token);
+  const spent = spentLast24h(token);
   if (spent + amount > cap) {
     throw new Error(
-      `Daily cap exceeded: cap ${fromBaseUnits(cap)} USDC, spent ${fromBaseUnits(spent)} in 24h, requested ${req.amount}.`,
+      `Daily cap exceeded: cap ${fromBaseUnits(cap, dec)} ${token}, spent ${fromBaseUnits(spent, dec)} in 24h, requested ${req.amount}.`,
     );
   }
 
@@ -89,6 +95,16 @@ export async function execute(req: PaymentRequest): Promise<Executed> {
   const client = createClient()
     .use(signerPlugin(kp))
     .use(solanaRpc({ rpcUrl: rpcUrl(), transactionConfig: { version: 1 } }));
+  const memoIx = getAddMemoInstruction({ memo: `${req.id} ${req.memo}`.slice(0, 200) });
+  const remaining = fromBaseUnits(cap - spent - amount, dec);
+
+  if (token === "SOL") {
+    const result = await client.sendTransaction([
+      getTransferSolInstruction({ source: kp, destination: address(req.recipient), amount }),
+      memoIx,
+    ]);
+    return { tx: result.context.signature, from: kp.address, remainingCap: remaining };
+  }
 
   const mint = address(USDC_MINT[req.cluster]);
   const recipient = address(req.recipient);
@@ -112,8 +128,8 @@ export async function execute(req: PaymentRequest): Promise<Executed> {
   const result = await client.sendTransaction([
     getCreateAssociatedTokenIdempotentInstruction({ payer: kp, owner: recipient, mint, ata: toAta }),
     transferWithRef,
-    getAddMemoInstruction({ memo: `${req.id} ${req.memo}`.slice(0, 200) }),
+    memoIx,
   ]);
 
-  return { tx: result.context.signature, from: kp.address, remainingCap: fromBaseUnits(cap - spent - amount) };
+  return { tx: result.context.signature, from: kp.address, remainingCap: remaining };
 }
