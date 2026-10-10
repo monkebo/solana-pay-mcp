@@ -25,8 +25,11 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
+    "@solana-program/memo": "^0.15.0",
+    "@solana-program/token": "^0.17.0",
     "@solana/kit": "^8.4.0",
     "@solana/kit-plugin-rpc": "^0.19.0",
+    "@solana/kit-plugin-signer": "^0.19.0",
     "qrcode": "^1.5.4",
     "zod": "^4.6.5"
   },

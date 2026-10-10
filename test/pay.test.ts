@@ -64,3 +64,18 @@ describe("paid detection", () => {
     expect(isPaid(wrongOwner, req)).toBe(false);
   });
 });
+
+describe("daily cap", () => {
+  it("blocks a payment that would exceed the cap", async () => {
+    const { mkdtempSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    process.env.SOLANA_PAY_MCP_HOME = mkdtempSync(join(tmpdir(), "spm-"));
+    process.env.SOLANA_PAY_DAILY_CAP = "5";
+    process.env.SOLANA_PAY_SIGNER = "/nonexistent"; // cap check runs before the key is read
+    const store = await import("../src/store.js");
+    const { execute } = await import("../src/signer.js");
+    store.put({ ...req, id: "pay_old", kind: "payment", amount: "4", paidTx: "x", paidAt: new Date().toISOString(), matchedBy: "signer" });
+    await expect(execute({ ...req, id: "pay_new", kind: "payment", amount: "2" })).rejects.toThrow(/Daily cap exceeded/);
+  });
+});

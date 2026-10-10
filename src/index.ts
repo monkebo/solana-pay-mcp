@@ -9,6 +9,16 @@ import { address } from "@solana/kit";
 import { type PaymentRequest, solanaPayUrl, toBaseUnits } from "./pay.js";
 import * as store from "./store.js";
 import { cluster, explorerUrl, findPayment, newReference, recipient } from "./solana.js";
+import { dailyCapUnits, execute, keygen, signerAddress, signerPath, spentLast24h } from "./signer.js";
+import { fromBaseUnits } from "./pay.js";
+
+// `solana-pay-mcp keygen` writes a new agent keypair and exits. Never prints the secret.
+if (process.argv[2] === "keygen") {
+  const addr = await keygen(process.argv[3]);
+  console.log(`Agent key created. Address: ${addr}`);
+  console.log(`Fund it with a little SOL (fees) and USDC, then set SOLANA_PAY_SIGNER=<path> and SOLANA_PAY_DAILY_CAP=<usdc>.`);
+  process.exit(0);
+}
 
 const server = new McpServer({ name: "solana-pay-mcp", version: "0.1.0" });
 
@@ -75,15 +85,17 @@ server.registerTool(
   {
     title: "Pay someone in USDC",
     description:
-      "Pay a person or business in USDC on Solana. Returns a Solana Pay link and QR that YOU open in your own " +
-      "wallet and approve. This server never holds keys. Follow with check_payment to confirm it landed.",
+      "Pay a person or business in USDC on Solana. " +
+      "With an agent signer configured (SOLANA_PAY_SIGNER), call once to get a preview, then call again with " +
+      "confirm=true to sign and send within the daily cap. Without a signer, returns a Solana Pay link/QR you approve in your own wallet.",
     inputSchema: {
       to: z.string().describe("Recipient Solana wallet address"),
       amount: amountSchema,
       memo: z.string().min(1).max(120).describe("What it is for"),
+      confirm: z.boolean().optional().describe("Set true to actually sign and send from the agent wallet"),
     },
   },
-  async ({ to, amount, memo }) => {
+  async ({ to, amount, memo, confirm }) => {
     const req: PaymentRequest = {
       id: `pay_${randomUUID().slice(0, 8)}`,
       kind: "payment",
@@ -94,8 +106,61 @@ server.registerTool(
       cluster: cluster(),
       createdAt: new Date().toISOString(),
     };
+    if (!signerPath()) {
+      store.put(req);
+      return present(req, "Payment of");
+    }
+    const from = await signerAddress();
+    const cap = fromBaseUnits(dailyCapUnits());
+    const spent = fromBaseUnits(spentLast24h());
+    if (!confirm) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: [
+              `PREVIEW, nothing sent.`,
+              `Pay ${amount} USDC to ${to} on ${req.cluster}`,
+              `From agent wallet ${from}`,
+              `Memo: ${memo}`,
+              `Daily cap ${cap} USDC, spent ${spent} in last 24h.`,
+              `Call send_payment again with the same arguments and confirm=true to send.`,
+            ].join("\n"),
+          },
+        ],
+        structuredContent: { ...req, from, cap, spent, preview: true },
+      };
+    }
     store.put(req);
-    return present(req, "Payment of");
+    const done = await execute(req);
+    req.paidTx = done.tx;
+    req.paidAt = new Date().toISOString();
+    req.matchedBy = "signer";
+    store.put(req);
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: `SENT. ${amount} USDC to ${to} from ${done.from}. Remaining daily cap ${done.remainingCap} USDC.\n${explorerUrl(done.tx)}`,
+        },
+      ],
+      structuredContent: { ...req, from: done.from, remainingCap: done.remainingCap },
+    };
+  },
+);
+
+server.registerTool(
+  "wallet_status",
+  { title: "Agent wallet status", description: "Which wallet receives invoices, whether an agent signer is configured, its address, and the daily cap." },
+  async () => {
+    const lines = [`Cluster: ${cluster()}`, `Invoices paid to: ${recipient()}`];
+    if (signerPath()) {
+      lines.push(`Agent signer: ${await signerAddress()}`);
+      lines.push(`Daily cap: ${fromBaseUnits(dailyCapUnits())} USDC, spent last 24h: ${fromBaseUnits(spentLast24h())} USDC`);
+    } else {
+      lines.push("Agent signer: none. Payments return a QR for your own wallet. Run `solana-pay-mcp keygen` to enable.");
+    }
+    return { content: [{ type: "text", text: lines.join("\n") }] };
   },
 );
 
