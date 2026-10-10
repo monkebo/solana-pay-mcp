@@ -44,6 +44,8 @@ Or in `claude_desktop_config.json` / `.mcp.json`:
 | `check_payment(id)` | Finds the on-chain USDC transfer for an invoice or payment. |
 | `list_requests()` | Everything this server created, with paid status. |
 
+> **Wallet reality check (tested 2026-10-10):** Phantom mobile parsed the Solana Pay link but could not load devnet balances; Solflare mobile rejected the link. Users will often pay by plain address instead. `check_payment` handles that: it first looks for the reference key, then falls back to scanning the recipient's USDC inflows after the request was created, and says which one matched.
+
 Each request carries a fresh `reference` public key. Wallets attach it to the transaction, so `check_payment` finds it with one `getSignaturesForAddress` call and verifies recipient, mint and amount from the transaction's token balances. No webhooks, no indexer.
 
 ## Config
