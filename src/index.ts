@@ -5,9 +5,10 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import QRCode from "qrcode";
 import { randomUUID } from "node:crypto";
-import { address } from "@solana/kit";
+
 import { type PaymentRequest, solanaPayUrl, toBaseUnits } from "./pay.js";
 import * as store from "./store.js";
+import * as contacts from "./contacts.js";
 import { cluster, explorerUrl, findPayment, newReference, recipient } from "./solana.js";
 import { dailyCapUnits, execute, keygen, signerAddress, signerPath, spentLast24h } from "./signer.js";
 import { fromBaseUnits } from "./pay.js";
@@ -89,7 +90,7 @@ server.registerTool(
       "With an agent signer configured (SOLANA_PAY_SIGNER), call once to get a preview, then call again with " +
       "confirm=true to sign and send within the daily cap. Without a signer, returns a Solana Pay link/QR you approve in your own wallet.",
     inputSchema: {
-      to: z.string().describe("Recipient Solana wallet address"),
+      to: z.string().describe("Saved contact name (e.g. 'kevin') or a Solana wallet address"),
       amount: amountSchema,
       memo: z.string().min(1).max(120).describe("What it is for"),
       confirm: z.boolean().optional().describe("Set true to actually sign and send from the agent wallet"),
@@ -99,7 +100,7 @@ server.registerTool(
     const req: PaymentRequest = {
       id: `pay_${randomUUID().slice(0, 8)}`,
       kind: "payment",
-      recipient: address(to),
+      recipient: contacts.resolve(to),
       amount,
       memo,
       reference: await newReference(),
@@ -146,6 +147,88 @@ server.registerTool(
       ],
       structuredContent: { ...req, from: done.from, remainingCap: done.remainingCap },
     };
+  },
+);
+
+server.registerTool(
+  "pay_many",
+  {
+    title: "Pay several people in USDC",
+    description:
+      "Batch payments from the agent wallet: payroll, bounties, splits. Each item is a contact name or address plus amount. " +
+      "Call once for a preview (total vs daily cap), then again with confirm=true to send. One transaction per recipient.",
+    inputSchema: {
+      payments: z
+        .array(z.object({ to: z.string(), amount: amountSchema, memo: z.string().min(1).max(120) }))
+        .min(1)
+        .max(200),
+      confirm: z.boolean().optional(),
+    },
+  },
+  async ({ payments, confirm }) => {
+    if (!signerPath()) throw new Error("pay_many needs an agent signer. Run `solana-pay-mcp keygen` and set SOLANA_PAY_SIGNER.");
+    const reqs: PaymentRequest[] = [];
+    for (const p of payments) {
+      reqs.push({
+        id: `pay_${randomUUID().slice(0, 8)}`,
+        kind: "payment",
+        recipient: contacts.resolve(p.to),
+        amount: p.amount,
+        memo: p.memo,
+        reference: await newReference(),
+        cluster: cluster(),
+        createdAt: new Date().toISOString(),
+      });
+    }
+    const total = reqs.reduce((a, r) => a + toBaseUnits(r.amount), 0n);
+    const left = dailyCapUnits() - spentLast24h();
+    const rows = payments.map((p, i) => `${p.amount} USDC → ${p.to} (${reqs[i].recipient.slice(0, 6)}…) ${p.memo}`);
+    if (!confirm) {
+      const over = total > left ? `\nOVER CAP: only ${fromBaseUnits(left)} USDC left today.` : "";
+      return {
+        content: [{ type: "text" as const, text: `PREVIEW, nothing sent.\n${rows.join("\n")}\nTotal ${fromBaseUnits(total)} USDC, ${fromBaseUnits(left)} USDC left in daily cap.${over}\nCall again with confirm=true to send.` }],
+      };
+    }
+    // ponytail: sequential, one tx each; batch several transfers per tx if payroll > ~50 rows gets slow.
+    const out: string[] = [];
+    for (const req of reqs) {
+      store.put(req);
+      try {
+        const done = await execute(req);
+        req.paidTx = done.tx;
+        req.paidAt = new Date().toISOString();
+        req.matchedBy = "signer";
+        store.put(req);
+        out.push(`SENT ${req.amount} USDC → ${req.recipient.slice(0, 6)}… ${explorerUrl(done.tx)}`);
+      } catch (e) {
+        out.push(`FAILED ${req.amount} USDC → ${req.recipient.slice(0, 6)}…: ${(e as Error).message}`);
+        break; // stop on first failure (cap, no funds); nothing after it is attempted
+      }
+    }
+    return { content: [{ type: "text" as const, text: out.join("\n") }] };
+  },
+);
+
+server.registerTool(
+  "add_contact",
+  {
+    title: "Save a contact",
+    description: "Save a name for a wallet address so you can say 'pay kevin 5 USDC'.",
+    inputSchema: { name: z.string().min(1).max(40), address: z.string() },
+  },
+  async ({ name, address: addr }) => {
+    contacts.save(name, addr);
+    return { content: [{ type: "text" as const, text: `Saved ${name.toLowerCase()} → ${addr}` }] };
+  },
+);
+
+server.registerTool(
+  "list_contacts",
+  { title: "List contacts", description: "Saved names and their wallet addresses." },
+  async () => {
+    const c = contacts.all();
+    const text = Object.keys(c).length ? Object.entries(c).map(([n, a]) => `${n} → ${a}`).join("\n") : "No contacts yet.";
+    return { content: [{ type: "text" as const, text }] };
   },
 );
 

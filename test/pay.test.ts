@@ -79,3 +79,19 @@ describe("daily cap", () => {
     await expect(execute({ ...req, id: "pay_new", kind: "payment", amount: "2" })).rejects.toThrow(/Daily cap exceeded/);
   });
 });
+
+describe("contacts", () => {
+  it("resolves saved names and raw addresses, rejects junk", async () => {
+    const { mkdtempSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    process.env.SOLANA_PAY_MCP_HOME = mkdtempSync(join(tmpdir(), "spm-"));
+    const c = await import("../src/contacts.js");
+    const addr = "GG6uob9Gn8sTojdK6w2vXeoSqft82reYaTvAzZtrdNuf";
+    c.save("Kevin", addr);
+    expect(c.resolve("kevin")).toBe(addr);
+    expect(c.resolve(" KEVIN ")).toBe(addr);
+    expect(c.resolve(addr)).toBe(addr);
+    expect(() => c.resolve("nico")).toThrow(/Unknown contact/);
+  });
+});

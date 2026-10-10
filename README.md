@@ -53,6 +53,8 @@ Each request carries a fresh `reference` public key. Wallets attach it to the tr
 | Env | Default | Meaning |
 |---|---|---|
 | `SOLANA_PAY_RECIPIENT` | required | Wallet that receives invoices |
+| `SOLANA_PAY_SIGNER` | Path to the agent keypair from `solana-pay-mcp keygen`. Set it and Claude pays itself; unset, you get a QR for your own wallet. |
+| `SOLANA_PAY_DAILY_CAP` | Max USDC the agent wallet may send per 24h. Default 10. |
 | `SOLANA_CLUSTER` | `devnet` | `devnet` or `mainnet` |
 | `SOLANA_RPC_URL` | public RPC | Helius, Triton, etc. |
 | `SOLANA_PAY_MCP_HOME` | `~/.solana-pay-mcp` | Where requests are stored (JSON) |
