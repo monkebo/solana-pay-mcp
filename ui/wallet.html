@@ -1,0 +1,142 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root { --bg:#ffffff; --fg:#15201c; --muted:#5c6b64; --line:#d9ded9; --accent:#0f8a5f; --accent-fg:#ffffff; --soft:#eef6f2; --bad:#b42318; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#16201b; --fg:#e8ece8; --muted:#9aa8a0; --line:#2a3530; --accent:#3dcf96; --accent-fg:#0b1410; --soft:#1c2b24; --bad:#f97066; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg:#16201b; --fg:#e8ece8; --muted:#9aa8a0; --line:#2a3530; --accent:#3dcf96; --accent-fg:#0b1410; --soft:#1c2b24; --bad:#f97066; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+.card { padding:16px; display:flex; flex-direction:column; gap:12px; }
+.top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.label { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.amount { font:600 30px/1.1 ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums; }
+.amount small { font-size:16px; color:var(--muted); margin-left:4px; }
+.pill { font:600 11px ui-monospace,Menlo,monospace; padding:3px 8px; border-radius:99px; background:var(--soft); color:var(--accent); }
+.pill.bad { color:var(--bad); }
+dl { margin:0; display:grid; grid-template-columns:auto 1fr; gap:6px 12px; }
+dt { color:var(--muted); }
+dd { margin:0; min-width:0; overflow-wrap:anywhere; }
+.mono { font-family:ui-monospace,Menlo,monospace; font-size:12px; }
+table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+td { padding:6px 0; border-bottom:1px solid var(--line); vertical-align:top; }
+td.r { text-align:right; font-family:ui-monospace,Menlo,monospace; white-space:nowrap; padding-left:12px; }
+.actions { display:flex; gap:8px; flex-wrap:wrap; }
+button { font:600 14px system-ui,sans-serif; border-radius:8px; padding:10px 16px; cursor:pointer; border:1px solid var(--line); background:transparent; color:var(--fg); }
+button.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-fg); }
+button:disabled { opacity:.5; cursor:default; }
+button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+a { color:var(--accent); }
+.qr { width:180px; max-width:100%; background:#fff; padding:8px; border-radius:8px; }
+.qr svg { display:block; width:100%; height:auto; }
+.err { color:var(--bad); }
+.muted { color:var(--muted); }
+</style>
+</head>
+<body>
+<div id="root" class="card"><span class="muted">Loading…</span></div>
+<script type="module">
+/*__APP_BUNDLE__*/
+const App = globalThis.__McpExtApp;
+const root = document.getElementById("root");
+const app = new App({ name: "solana-pay", version: "0.3.0" });
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const short = (a) => (a && a.length > 12 ? a.slice(0, 4) + "…" + a.slice(-4) : a);
+const link = (url, text) => `<a href="${esc(url)}" data-link>${esc(text)}</a>`;
+
+function render(sc) {
+  if (!sc || !sc.view) { root.innerHTML = `<span class="muted">No data.</span>`; return; }
+  const v = sc.view;
+  if (v === "preview" || v === "sent") {
+    const sent = v === "sent";
+    root.innerHTML = `
+      <div class="top"><span class="label">${sent ? "Sent" : "Confirm payment"} · ${esc(sc.cluster)}</span>
+        <span class="pill">${sent ? "SENT" : "PREVIEW"}</span></div>
+      <div class="amount">${esc(sc.amount)}<small>${esc(sc.token)}</small></div>
+      <dl>
+        <dt>To</dt><dd><b>${esc(sc.toLabel)}</b> <span class="mono">${esc(short(sc.recipient))}</span></dd>
+        <dt>For</dt><dd>${esc(sc.memo)}</dd>
+        <dt>From</dt><dd class="mono">${esc(short(sc.from))}</dd>
+        <dt>Daily cap</dt><dd>${sent ? `${esc(sc.remainingCap)} ${esc(sc.token)} left` : `${esc(sc.spent)} of ${esc(sc.cap)} ${esc(sc.token)} used`}</dd>
+      </dl>
+      <div class="actions">${sent
+        ? link(sc.explorer, "View on Solana Explorer")
+        : `<button class="primary" id="go">Pay ${esc(sc.amount)} ${esc(sc.token)}</button>`}</div>
+      <div id="msg"></div>`;
+    if (!sent) document.getElementById("go").onclick = () => confirm("send_payment", sc.args);
+  } else if (v === "batch_preview" || v === "batch_sent") {
+    const sent = v === "batch_sent";
+    const rows = sc.rows.map((r) => `<tr><td><b>${esc(r.to)}</b> <span class="mono muted">${esc(short(r.recipient))}</span><br><span class="muted">${esc(r.memo)}</span>${r.status ? `<br>${r.explorer ? link(r.explorer, r.status) : `<span class="err">${esc(r.status)}</span>`}` : ""}</td><td class="r">${esc(r.amount)} ${esc(sc.token)}</td></tr>`).join("");
+    root.innerHTML = `
+      <div class="top"><span class="label">${sent ? "Batch sent" : "Confirm batch"} · ${sc.rows.length} payments</span>
+        <span class="pill ${sc.overCap ? "bad" : ""}">${sent ? "DONE" : sc.overCap ? "OVER CAP" : "PREVIEW"}</span></div>
+      <div class="amount">${esc(sc.total)}<small>${esc(sc.token)}</small></div>
+      <table>${rows}</table>
+      ${sent ? "" : `<span class="muted">${esc(sc.left)} ${esc(sc.token)} left in daily cap.</span>
+      <div class="actions"><button class="primary" id="go" ${sc.overCap ? "disabled" : ""}>Pay all ${esc(sc.total)} ${esc(sc.token)}</button></div>`}
+      <div id="msg"></div>`;
+    if (!sent && !sc.overCap) document.getElementById("go").onclick = () => confirm("pay_many", sc.args);
+  } else if (v === "invoice") {
+    root.innerHTML = `
+      <div class="top"><span class="label">Invoice · ${esc(sc.cluster)}</span><span class="pill">${esc(sc.id)}</span></div>
+      <div class="amount">${esc(sc.amount)}<small>USDC</small></div>
+      <dl><dt>For</dt><dd>${esc(sc.memo)}</dd><dt>Pay to</dt><dd class="mono">${esc(sc.recipient)}</dd></dl>
+      <div class="qr">${sc.qrSvg}</div>
+      <div class="actions"><button id="copy">Copy pay link</button><button id="check">Check if paid</button></div>
+      <div id="msg"></div>`;
+    document.getElementById("copy").onclick = async () => {
+      try { await navigator.clipboard.writeText(sc.url); say("Copied."); } catch { say(sc.url); }
+    };
+    document.getElementById("check").onclick = async () => {
+      const r = await call("check_payment", { id: sc.id });
+      if (r) say(r.structuredContent?.paid ? "PAID ✓" : "Not paid yet.");
+    };
+  } else if (v === "status") {
+    root.innerHTML = `
+      <div class="top"><span class="label">Agent wallet · ${esc(sc.cluster)}</span><span class="pill">${sc.signer ? "ACTIVE" : "NO SIGNER"}</span></div>
+      ${sc.signer ? `
+      <div class="amount">${esc(sc.usdc)}<small>USDC</small></div>
+      <dl>
+        <dt>SOL</dt><dd>${esc(sc.sol)}</dd>
+        <dt>Today</dt><dd>${esc(sc.spentUsdc)} / ${esc(sc.capUsdc)} USDC · ${esc(sc.spentSol)} / ${esc(sc.capSol)} SOL</dd>
+        <dt>Address</dt><dd class="mono">${esc(sc.signer)}</dd>
+      </dl>
+      <div class="qr">${sc.qrSvg}</div>
+      <span class="muted">Scan to fund the agent wallet. Send USDC plus a little SOL for fees.</span>
+      <div class="actions"><button id="copy">Copy address</button></div>` : `<span class="muted">Run <span class="mono">solana-pay-mcp keygen</span> to give Claude a wallet.</span>`}
+      <div id="msg"></div>`;
+    const c = document.getElementById("copy");
+    if (c) c.onclick = async () => { try { await navigator.clipboard.writeText(sc.signer); say("Copied."); } catch { say(sc.signer); } };
+  }
+  root.querySelectorAll("a[data-link]").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); app.openLink({ url: a.href }).catch(() => {}); }));
+}
+
+function say(t, bad) { const m = document.getElementById("msg"); if (m) m.innerHTML = `<span class="${bad ? "err" : "muted"}">${esc(t)}</span>`; }
+
+async function call(name, args) {
+  try {
+    const r = await app.callServerTool({ name, arguments: args });
+    if (r.isError) { say(r.content?.[0]?.text ?? "Failed.", true); return null; }
+    return r;
+  } catch (e) { say(e?.message ?? String(e), true); return null; }
+}
+
+async function confirm(name, args) {
+  const b = document.getElementById("go"); if (b) { b.disabled = true; b.textContent = "Sending…"; }
+  const r = await call(name, { ...args, confirm: true });
+  if (r?.structuredContent) {
+    render(r.structuredContent);
+    app.updateModelContext?.({ content: [{ type: "text", text: r.content?.[0]?.text ?? "Payment sent from the UI." }] }).catch(() => {});
+  } else if (b) { b.disabled = false; b.textContent = "Retry"; }
+}
+
+app.ontoolresult = (p) => render(p.structuredContent);
+app.onhostcontextchanged = (c) => { if (c.theme) document.documentElement.dataset.theme = c.theme; };
+await app.connect();
+const ctx = app.getHostContext(); if (ctx?.theme) document.documentElement.dataset.theme = ctx.theme;
+</script>
+</body>
+</html>

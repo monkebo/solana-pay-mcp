@@ -1,0 +1,25 @@
+// Checks the MCP App wiring: tool _meta.ui, the ui:// resource, and structuredContent views.
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { writeFileSync } from "node:fs";
+const c = new Client({ name: "app-smoke", version: "0" });
+await c.connect(new StdioClientTransport({ command: "node", args: ["dist/index.js"], env: { ...process.env } }));
+const tools = (await c.listTools()).tools;
+for (const t of tools) if (t._meta?.ui) console.log("ui tool:", t.name, JSON.stringify(t._meta));
+const res = await c.listResources();
+console.log("resources:", res.resources.map((r) => `${r.uri} ${r.mimeType}`).join(", "));
+const html = (await c.readResource({ uri: "ui://solana-pay/wallet.html" })).contents[0];
+console.log("html mime:", html.mimeType, "bytes:", html.text.length, "has </script> count:", (html.text.match(/<\/script/gi) || []).length);
+writeFileSync(process.argv[2] + "/wallet.html", html.text);
+const js = html.text.split('<script type="module">')[1].split("</script>")[0];
+writeFileSync(process.argv[2] + "/wallet-inline.mjs", js);
+const view = async (n, a) => (await c.callTool({ name: n, arguments: a })).structuredContent;
+const s = await view("wallet_status", {});
+console.log("status:", s.view, s.usdc, "USDC", s.sol, "SOL", "qr:", String(s.qrSvg).slice(0, 20));
+const p = await view("send_payment", { to: "bohdan", amount: "0.1", memo: "ui test" });
+console.log("preview:", p.view, p.amount, p.token, p.toLabel, JSON.stringify(p.args));
+const b = await view("pay_many", { payments: [{ to: "bohdan", amount: "0.1", memo: "a" }, { to: "dev", amount: "0.1", memo: "b" }] });
+console.log("batch:", b.view, b.total, b.overCap, b.rows.length);
+const i = await view("create_invoice", { amount: "1", memo: "ui invoice" });
+console.log("invoice:", i.view, i.id, String(i.qrSvg).slice(0, 20));
+await c.close();

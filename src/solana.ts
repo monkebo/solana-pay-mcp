@@ -1,6 +1,6 @@
 // Chain I/O. Read-only: this server never holds a private key.
 import { address, createSolanaRpc, generateKeyPairSigner, type Address } from "@solana/kit";
-import { type Cluster, type PaymentRequest, isPaid } from "./pay.js";
+import { type Cluster, type PaymentRequest, USDC_MINT, fromBaseUnits, isPaid } from "./pay.js";
 
 export function cluster(): Cluster {
   const c = process.env.SOLANA_CLUSTER ?? "devnet";
@@ -63,4 +63,15 @@ export async function findPayment(req: PaymentRequest): Promise<Found | null> {
 export function explorerUrl(tx: string): string {
   const c = cluster();
   return `https://explorer.solana.com/tx/${tx}${c === "devnet" ? "?cluster=devnet" : ""}`;
+}
+
+/** SOL and USDC balance of an owner, as decimal strings. */
+export async function balances(owner: string): Promise<{ sol: string; usdc: string }> {
+  const r = rpc();
+  const lamports = (await r.getBalance(address(owner)).send()).value;
+  const accts = await r
+    .getTokenAccountsByOwner(address(owner), { mint: address(USDC_MINT[cluster()]) }, { encoding: "jsonParsed" })
+    .send();
+  const units = accts.value.reduce((a, x) => a + BigInt(x.account.data.parsed.info.tokenAmount.amount), 0n);
+  return { sol: fromBaseUnits(lamports, 9), usdc: fromBaseUnits(units) };
 }

@@ -6,7 +6,9 @@ import { randomUUID } from "node:crypto";
 import { type PaymentRequest, type Token, DECIMALS, fromBaseUnits, solanaPayUrl, toBaseUnits } from "./pay.js";
 import * as store from "./store.js";
 import * as contacts from "./contacts.js";
-import { cluster, explorerUrl, findPayment, newReference, recipient } from "./solana.js";
+import { balances, cluster, explorerUrl, findPayment, newReference, recipient } from "./solana.js";
+import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
+import { walletHtml } from "./ui.js";
 import { dailyCapUnits, execute, signerAddress, signerPath, spentLast24h } from "./signer.js";
 
 const amountSchema = z
@@ -21,6 +23,10 @@ const amountSchema = z
   }, "amount must be a positive decimal with at most 9 decimals");
 
 const tokenSchema = z.enum(["USDC", "SOL"]).optional().describe("USDC (default) or SOL");
+
+const UI = "ui://solana-pay/wallet.html";
+const ui = { ui: { resourceUri: UI } };
+const qrSvg = (text: string) => QRCode.toString(text, { type: "svg", margin: 1 });
 
 async function present(req: PaymentRequest, verb: string) {
   const url = solanaPayUrl(req);
@@ -40,7 +46,7 @@ async function present(req: PaymentRequest, verb: string) {
         ].join("\n"),
       },
     ],
-    structuredContent: { ...req, url },
+    structuredContent: { ...req, url, view: "invoice", qrSvg: await qrSvg(url) },
   };
 }
 
@@ -67,11 +73,18 @@ function markSent(req: PaymentRequest, tx: string) {
 }
 
 export function createServer(): McpServer {
-  const server = new McpServer({ name: "solana-pay-mcp", version: "0.2.0" });
+  const server = new McpServer({ name: "solana-pay-mcp", version: "0.3.0" });
 
-  server.registerTool(
+  // MCP Apps: one HTML view renders previews (with a Pay button), receipts, invoices and the wallet card.
+  registerAppResource(server, "Solana Pay wallet", UI, { mimeType: RESOURCE_MIME_TYPE }, async () => ({
+    contents: [{ uri: UI, mimeType: RESOURCE_MIME_TYPE, text: walletHtml() }],
+  }));
+
+  registerAppTool(
+    server,
     "create_invoice",
     {
+      _meta: ui,
       title: "Create USDC invoice",
       description:
         "Create an invoice your client pays in USDC on Solana. Returns a Solana Pay link and QR. " +
@@ -95,9 +108,11 @@ export function createServer(): McpServer {
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "send_payment",
     {
+      _meta: ui,
       title: "Pay someone",
       description:
         "Pay a contact or address in USDC or SOL on Solana. " +
@@ -137,7 +152,10 @@ export function createServer(): McpServer {
               ].join("\n"),
             },
           ],
-          structuredContent: { ...req, from, cap, spent, preview: true },
+          structuredContent: {
+            ...req, from, cap, spent, token, toLabel: to, preview: true, view: "preview",
+            args: { to, amount, token, memo },
+          },
         };
       }
       store.put(req);
@@ -150,14 +168,18 @@ export function createServer(): McpServer {
             text: `SENT. ${amount} ${token} to ${to} from ${done.from}. Remaining daily cap ${done.remainingCap} ${token}.\n${explorerUrl(done.tx)}`,
           },
         ],
-        structuredContent: { ...req, from: done.from, remainingCap: done.remainingCap },
+        structuredContent: {
+          ...req, from: done.from, remainingCap: done.remainingCap, token, toLabel: to, view: "sent", explorer: explorerUrl(done.tx),
+        },
       };
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "pay_many",
     {
+      _meta: ui,
       title: "Pay several people",
       description:
         "Batch payments from the agent wallet: payroll, bounties, splits. Each item is a contact name or address plus amount. " +
@@ -179,6 +201,8 @@ export function createServer(): McpServer {
       const total = reqs.reduce((a, r) => a + toBaseUnits(r.amount, dec), 0n);
       const left = dailyCapUnits(token) - spentLast24h(token);
       const rows = payments.map((p, i) => `${p.amount} ${token} → ${p.to} (${reqs[i].recipient.slice(0, 6)}…) ${p.memo}`);
+      const base = (status: (string | undefined)[] = [], explorers: (string | undefined)[] = []) =>
+        payments.map((p, i) => ({ to: p.to, recipient: reqs[i].recipient, amount: p.amount, memo: p.memo, status: status[i], explorer: explorers[i] }));
       if (!confirm) {
         const over = total > left ? `\nOVER CAP: only ${fromBaseUnits(left, dec)} ${token} left today.` : "";
         return {
@@ -188,22 +212,35 @@ export function createServer(): McpServer {
               text: `PREVIEW, nothing sent.\n${rows.join("\n")}\nTotal ${fromBaseUnits(total, dec)} ${token}, ${fromBaseUnits(left, dec)} ${token} left in daily cap.${over}\nCall again with confirm=true to send.`,
             },
           ],
+          structuredContent: {
+            view: "batch_preview", token, rows: base(), total: fromBaseUnits(total, dec), left: fromBaseUnits(left, dec),
+            overCap: total > left, args: { payments, token },
+          },
         };
       }
       // ponytail: sequential, one tx each; batch several transfers per tx if payroll > ~50 rows gets slow.
       const out: string[] = [];
+      const status: string[] = [];
+      const explorers: (string | undefined)[] = [];
       for (const req of reqs) {
         store.put(req);
         try {
           const done = await execute(req);
           markSent(req, done.tx);
           out.push(`SENT ${req.amount} ${token} → ${req.recipient.slice(0, 6)}… ${explorerUrl(done.tx)}`);
+          status.push("sent");
+          explorers.push(explorerUrl(done.tx));
         } catch (e) {
           out.push(`FAILED ${req.amount} ${token} → ${req.recipient.slice(0, 6)}…: ${(e as Error).message}`);
+          status.push(`failed: ${(e as Error).message}`);
+          explorers.push(undefined);
           break; // stop on first failure (cap, no funds); nothing after it is attempted
         }
       }
-      return { content: [{ type: "text" as const, text: out.join("\n") }] };
+      return {
+        content: [{ type: "text" as const, text: out.join("\n") }],
+        structuredContent: { view: "batch_sent", token, rows: base(status, explorers), total: fromBaseUnits(total, dec) },
+      };
     },
   );
 
@@ -230,19 +267,30 @@ export function createServer(): McpServer {
     },
   );
 
-  server.registerTool(
+  registerAppTool(
+    server,
     "wallet_status",
-    { title: "Agent wallet status", description: "Which wallet receives invoices, whether an agent signer is configured, its address, and the daily caps." },
+    {
+      _meta: ui, title: "Agent wallet status", description: "Agent wallet card: balances, daily caps, and the address/QR to fund it. Use for 'fund my wallet' or 'what is my balance'." },
     async () => {
       const lines = [`Cluster: ${cluster()}`, `Invoices paid to: ${recipient()}`];
+      let sc: Record<string, unknown> = { view: "status", cluster: cluster(), signer: null };
       if (signerPath()) {
-        lines.push(`Agent signer: ${await signerAddress()}`);
+        const addr = await signerAddress();
+        const b = await balances(addr);
+        lines.push(`Agent signer: ${addr}`);
+        lines.push(`Balance: ${b.usdc} USDC, ${b.sol} SOL`);
+        sc = {
+          ...sc, signer: addr, usdc: b.usdc, sol: b.sol, qrSvg: await qrSvg(addr),
+          capUsdc: fromBaseUnits(dailyCapUnits()), spentUsdc: fromBaseUnits(spentLast24h()),
+          capSol: fromBaseUnits(dailyCapUnits("SOL"), 9), spentSol: fromBaseUnits(spentLast24h("SOL"), 9),
+        };
         lines.push(`Daily cap: ${fromBaseUnits(dailyCapUnits())} USDC, spent last 24h: ${fromBaseUnits(spentLast24h())} USDC`);
         lines.push(`Daily cap: ${fromBaseUnits(dailyCapUnits("SOL"), 9)} SOL, spent last 24h: ${fromBaseUnits(spentLast24h("SOL"), 9)} SOL`);
       } else {
         lines.push("Agent signer: none. Payments return a QR for your own wallet. Run `solana-pay-mcp keygen` to enable.");
       }
-      return { content: [{ type: "text" as const, text: lines.join("\n") }] };
+      return { content: [{ type: "text" as const, text: lines.join("\n") }], structuredContent: sc };
     },
   );
 
