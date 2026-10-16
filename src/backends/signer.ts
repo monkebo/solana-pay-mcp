@@ -3,7 +3,7 @@
 //   POST {url}/sign { "message": "<base64>" } → { "signature": "<base64 64 bytes>" }
 // Authorization: Bearer <token>. The signer never sees policy; this control plane applies it first.
 import { address, getBase64Decoder, getBase64Encoder, type Address, type SignatureBytes, type TransactionPartialSigner } from "@solana/kit";
-import { registerBackend, type Backend, type BackendConfig } from "../core/backend.js";
+import { backendFetch, registerBackend, type Backend, type BackendConfig } from "../core/backend.js";
 import { WalletError } from "../core/errors.js";
 
 registerBackend("signer", (cfg: BackendConfig): Backend => {
@@ -16,7 +16,7 @@ registerBackend("signer", (cfg: BackendConfig): Backend => {
   async function call<T>(path: string, body?: unknown): Promise<T> {
     let r: Response;
     try {
-      r = await fetch(base + path, { method: body ? "POST" : "GET", headers, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(20_000) });
+      r = await backendFetch()(base + path, { method: body ? "POST" : "GET", headers, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(20_000) });
     } catch (e) {
       throw new WalletError("UPSTREAM_UNAVAILABLE", `Remote signer unreachable: ${(e as Error).message}`);
     }
