@@ -77,7 +77,7 @@ export async function gated<T>(ctx: Ctx, g: GateInput<T>): Promise<T | Pending> 
       details: { ...order.details, ...(r.details ?? {}) },
     });
     const result = r.result as T & { orderId?: string };
-    if (result && typeof result === "object" && !Array.isArray(result)) (result as { orderId?: string }).orderId ??= order.id;
+    if (result && typeof result === "object" && !Array.isArray(result) && !(result as { orderId?: string }).orderId) (result as { orderId?: string }).orderId = order.id;
     return result;
   } catch (e) {
     setOrder(order.id, { status: "FAILED", error: (e as Error).message });
