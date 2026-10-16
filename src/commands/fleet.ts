@@ -10,7 +10,7 @@ import type { Instruction } from "@solana/kit";
 import { define, num, optBool, optNum, optStr, str } from "../core/registry.js";
 import { agents, createAgent, requireAgent, setAgentStatus, type Agent, type AgentPolicy } from "../core/agents.js";
 import { issueSession, revokeAgentSessions, activeSessions } from "../core/session.js";
-import { addContact, contacts } from "../core/addressbook.js";
+import { addContact, contacts, removeContact } from "../core/addressbook.js";
 import { readOwnerPolicy, patchPolicy, readPolicy } from "../core/policy.js";
 import { orders, newOrder, setOrder, quotaUsed } from "../core/orders.js";
 import { runAsAgent } from "../core/agents.js";
@@ -128,13 +128,17 @@ define({
     const rows = list.map(row) as (ReturnType<typeof row> & { usdc?: string; sol?: string })[];
     if (balances) {
       const usdc = await resolveToken(ctx, "USDC");
-      await Promise.all(
-        rows.map(async (r) => {
-          const [u, l] = await Promise.all([tokenBalanceUnits(ctx, address(r.address), usdc).catch(() => 0n), ctx.rpc.getBalance(address(r.address)).send().then((x) => BigInt(x.value)).catch(() => 0n)]);
+      // Sequential on purpose: public RPCs return 429 when a fleet is read in one burst. Unknown stays undefined, never 0.
+      for (const r of rows) {
+        try {
+          const [u, l] = await Promise.all([tokenBalanceUnits(ctx, address(r.address), usdc), ctx.rpc.getBalance(address(r.address)).send().then((x) => BigInt(x.value))]);
           r.usdc = fromUnits(u, usdc.decimals);
           r.sol = fromUnits(l, 9);
-        }),
-      );
+        } catch {
+          /* leave undefined: the caller shows "?" */
+        }
+        await new Promise((w) => setTimeout(w, 40));
+      }
     }
     const p = readOwnerPolicy();
     return { fleetPaused: p.fleetPaused, total: rows.length, active: rows.filter((r) => r.status === "active").length, spentTodayUsd: Math.round(rows.reduce((s, r) => s + r.spentTodayUsd, 0) * 100) / 100, agents: rows };
@@ -257,6 +261,28 @@ define({
     const patch = parseAssignments(assignments);
     const hit = selectAgents(t).map((a) => agents.put({ ...a, policy: { ...a.policy, ...patch } }));
     return { updated: hit.map((a) => a.name), policy: patch };
+  },
+});
+
+define({
+  name: "owner.fleet-rename",
+  cli: "owner fleet rename",
+  title: "Rename an agent",
+  description: "Give an agent a new name and/or role. Keys, balances, sessions and history stay; the address-book entry follows the name.",
+  access: "owner",
+  write: true,
+  positional: ["target"],
+  params: { target: str("Current agent name or id"), name: optStr("New name"), role: optStr("New role") },
+  async run(_ctx, { target: t, name, role }) {
+    const a = requireAgent(t);
+    if (name && name !== a.name) {
+      if (!/^[a-z0-9][a-z0-9._-]{0,31}$/i.test(name)) throw new WalletError("INVALID_PARAM", "Agent names: 1–32 chars, letters, digits, . _ -");
+      if (agents.all().some((x) => x.id !== a.id && x.name.toLowerCase() === name.toLowerCase())) throw new WalletError("INVALID_PARAM", `Agent "${name}" already exists.`);
+      try { removeContact(a.name); } catch { /* not in the book */ }
+      addContact(name, a.address);
+    }
+    const next = agents.put({ ...a, name: name ?? a.name, role: role ?? a.role });
+    return { id: next.id, name: next.name, role: next.role, address: next.address };
   },
 });
 
