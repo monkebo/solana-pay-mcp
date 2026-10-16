@@ -1,7 +1,7 @@
 name: ci
 on:
   push:
-    branches: [main]
+    branches: [main, "claude/**"]
   pull_request:
 jobs:
   test:
@@ -16,3 +16,5 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: npm run gen:skill && git diff --exit-code -- skills || (echo "skill docs out of date: run npm run gen:skill" && exit 1)
+      - run: SMOKE_HOME=$(mktemp -d) npm run smoke

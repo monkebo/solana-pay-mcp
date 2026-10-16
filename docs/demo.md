@@ -1,17 +1,12 @@
-# Two-minute demo script
+# Demo script (90 seconds)
 
-Record with Claude Code on the left, Phantom (devnet) on the phone, Solana Explorer on the right.
+Split screen. Left: Claude Desktop with this MCP. Right: the owner console (`saw vault serve`, open `/`).
 
-0:00  Title card: "Stripe agent toolkit, but USDC on Solana."
-0:10  Terminal: `claude mcp add solana-pay -e SOLANA_PAY_RECIPIENT=<wallet> -e SOLANA_CLUSTER=devnet -- solana-pay-mcp`
-0:25  Claude Code: "Invoice Acme 1.5 USDC for the October retainer."
-      → tool call create_invoice → link + QR appear.
-0:45  Phone: scan QR in Phantom, approve. Show the 1.5 USDC confirmation.
-1:05  Claude Code: "Did Acme pay?"
-      → check_payment → "PAID. 1.5 USDC ... explorer link".
-1:20  Click explorer link. Point at the reference key in the account list and the USDC transfer.
-1:35  Claude Code: "Pay Maria 0.25 USDC for the logo."
-      → send_payment → QR. Scan, approve. "Check it." → PAID.
-1:50  Close: "No keys on the server. Any wallet. Open source, MIT. github.com/monkebo/solana-pay-mcp"
+0:00  "Pay this month's five contractors." Claude calls `wallet_pay_many` (dry run) → card with five rows and the USD total. Click **Pay all**.
+0:15  Backend is `baw`: rows one and two leave through Binance Agentic Wallet. Explorer links appear.
+0:30  Owner console → Backend → `local` → Switch. Rows three to five leave from the self-custody key. Same policy, same ledger.
+0:50  Row five is to a new address: card shows **Waiting for owner approval**. Approve it in the console. It goes.
+1:05  "Invoice Acme 120 USDC for October." Card with QR. Scan from a phone wallet. Card flips to SETTLED with the payer label.
+1:20  Console → Backend → `signer` (remote custodian) → send one more. "Your wallet vendor changed. Your agents did not notice."
 
-Prep: two devnet wallets with USDC (faucet: https://faucet.circle.com, pick Solana devnet). Set SOLANA_PAY_RECIPIENT to wallet A, pay from wallet B.
+Prep: two devnet wallets with USDC (faucet.circle.com), a Binance agentic wallet signed in on Solana devnet or mainnet with a few dollars, `saw owner add-contact` for four of the five contractors.

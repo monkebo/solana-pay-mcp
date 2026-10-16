@@ -1,15 +1,17 @@
 {
   "name": "solana-pay-mcp",
-  "version": "0.3.0",
-  "description": "MCP server that lets Claude invoice, get paid, and pay in USDC on Solana. Stripe agent toolkit, but USDC on Solana.",
+  "version": "0.4.0",
+  "description": "Solana agentic wallet: a policy-controlled wallet for AI agents (CLI + MCP + skill) that runs on your own key, Binance Agentic Wallet, any HTTP signer, or a human wallet. Invoices, x402, swaps, limit orders, external signing.",
   "license": "MIT",
   "type": "module",
   "bin": {
+    "saw": "dist/saw.js",
     "solana-pay-mcp": "dist/index.js"
   },
   "files": [
     "dist",
     "ui",
+    "skills",
     "README.md",
     "LICENSE"
   ],
@@ -19,7 +21,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "inspect": "npx @modelcontextprotocol/inspector tsx src/index.ts",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+    "prepublishOnly": "npm run typecheck && npm test && npm run build && npm run gen:skill",
+    "gen:skill": "tsx src/docs.ts skills/solana-agentic-wallet",
+    "smoke": "node scripts/smoke.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -53,15 +57,22 @@
     "url": "https://github.com/monkebo/solana-pay-mcp/issues"
   },
   "keywords": [
+    "agent",
+    "agentic-wallet",
+    "binance",
+    "claude",
+    "invoice",
+    "jupiter",
     "mcp",
     "model-context-protocol",
-    "solana",
-    "usdc",
+    "openclaw",
     "payments",
-    "invoice",
+    "skill",
+    "solana",
     "solana-pay",
-    "claude",
-    "agent"
+    "usdc",
+    "wallet",
+    "x402"
   ],
   "author": "monkebo",
   "publishConfig": {
