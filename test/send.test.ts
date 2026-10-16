@@ -127,7 +127,7 @@ describe("wallet send", () => {
     expect(Number(d.amount)).toBeGreaterThan(0.99);
     expect(calls).toEqual([]);
     const me = await walletAddress();
-    expect(me).toHaveLength(44);
+    expect(me).toMatch(/^[1-9A-HJ-NP-Za-km-z]{43,44}$/);
   });
 
   it("simulation failure surfaces as SIMULATION_FAILED and marks the order FAILED", async () => {
