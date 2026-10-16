@@ -16,6 +16,7 @@ const policy = await import("../src/core/policy.js");
 const { orders } = await import("../src/core/orders.js");
 const { setBawRunner, BAW_SOL } = await import("../src/backends/baw.js");
 const { SOL_MINT, USDC_MINT } = await import("../src/core/tokens.js");
+const { setBackendFetch } = await import("../src/core/backend.js");
 
 const KEVIN = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
 const BAW_ADDR = "GG6uob9Gn8sTojdK6w2vXeoSqft82reYaTvAzZtrdNuf";
@@ -34,7 +35,7 @@ const rpc = {
   getLatestBlockhash: () => send({ value: { blockhash: "GHtXQBsoZHVnNFa9YevAzFr17DJjgHXk3ycTKD5xD3Zi", lastValidBlockHeight: 1000n } }),
   simulateTransaction: () => send({ value: { err: null, logs: [], unitsConsumed: 20_000n } }),
   sendTransaction: () => send(SIG),
-  getSignatureStatuses: () => send({ value: [{ err: null, confirmationStatus: "confirmed" }] }),
+  getSignatureStatuses: (sigs: string[]) => send({ value: sigs.map(() => ({ err: null, confirmationStatus: "confirmed" })) }),
   getBlockHeight: () => send(900n),
 } as never;
 
@@ -57,6 +58,7 @@ const agent = () => createCtx({ role: "agent", token, rpc, fetch: fetchMock });
 const owner = () => createCtx({ role: "owner", rpc, fetch: fetchMock });
 
 beforeAll(async () => {
+  setBackendFetch(fetchMock);
   await keygen();
   addContact("kevin", KEVIN);
   const s = (await exec(createCtx({ role: "agent" }), "auth.signin", {})) as { qrCodeId: string };

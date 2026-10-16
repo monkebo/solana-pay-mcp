@@ -53,6 +53,15 @@ export interface BackendConfig {
 }
 
 type Factory = (cfg: BackendConfig) => Backend;
+
+let fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis);
+/** Backends that talk HTTP use this, so tests and the vault can inject a fetch. */
+export function backendFetch(): typeof fetch {
+  return fetchImpl;
+}
+export function setBackendFetch(f: typeof fetch): void {
+  fetchImpl = f;
+}
 const factories = new Map<BackendKind, Factory>();
 
 export function registerBackend(kind: BackendKind, f: Factory): void {
