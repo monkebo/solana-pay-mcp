@@ -17,7 +17,6 @@ import { runAsAgent } from "../core/agents.js";
 import { activeBackend } from "../core/backend.js";
 import { loadSigner } from "../core/signer.js";
 import { resolveToken, fromUnits, toUnits } from "../core/tokens.js";
-import { tokenBalanceUnits } from "../core/send.js";
 import { sendInstructions } from "../core/tx.js";
 import { explorerUrl } from "../core/config.js";
 import { WalletError } from "../core/errors.js";
@@ -126,22 +125,30 @@ define({
   async run(ctx, { role, balances }) {
     const list = agents.all().filter((a) => !role || a.role === role).sort((a, b) => a.name.localeCompare(b.name));
     const rows = list.map(row) as (ReturnType<typeof row> & { usdc?: string; sol?: string })[];
-    if (balances) {
-      const usdc = await resolveToken(ctx, "USDC");
-      // Sequential on purpose: public RPCs return 429 when a fleet is read in one burst. Unknown stays undefined, never 0.
-      for (const r of rows) {
-        try {
-          const [u, l] = await Promise.all([tokenBalanceUnits(ctx, address(r.address), usdc), ctx.rpc.getBalance(address(r.address)).send().then((x) => BigInt(x.value))]);
-          r.usdc = fromUnits(u, usdc.decimals);
-          r.sol = fromUnits(l, 9);
-        } catch {
-          /* leave undefined: the caller shows "?" */
+    let balanceError: string | null = null;
+    if (balances && rows.length) {
+      // Two RPC calls per 100 agents (getMultipleAccounts on the USDC token accounts, then on the owners),
+      // instead of two per agent: public RPCs rate-limit a fleet read in one burst. Unknown stays undefined, never 0.
+      try {
+        const usdc = await resolveToken(ctx, "USDC");
+        const mint = address(usdc.mint);
+        const atas = await Promise.all(rows.map(async (r) => (await findAssociatedTokenPda({ mint, owner: address(r.address), tokenProgram: usdc.programAddress }))[0]));
+        for (let i = 0; i < rows.length; i += 100) {
+          const chunk = rows.slice(i, i + 100);
+          const tok = await ctx.rpc.getMultipleAccounts(atas.slice(i, i + 100), { encoding: "jsonParsed" }).send();
+          const sol = await ctx.rpc.getMultipleAccounts(chunk.map((r) => address(r.address))).send();
+          chunk.forEach((r, j) => {
+            const acc = tok.value[j] as { data?: { parsed?: { info?: { tokenAmount?: { amount: string } } } } } | null;
+            r.usdc = fromUnits(BigInt(acc?.data?.parsed?.info?.tokenAmount?.amount ?? "0"), usdc.decimals);
+            r.sol = fromUnits(BigInt(sol.value[j]?.lamports ?? 0n), 9);
+          });
         }
-        await new Promise((w) => setTimeout(w, 40));
+      } catch (e) {
+        balanceError = (e as Error).message.slice(0, 200);
       }
     }
     const p = readOwnerPolicy();
-    return { fleetPaused: p.fleetPaused, total: rows.length, active: rows.filter((r) => r.status === "active").length, spentTodayUsd: Math.round(rows.reduce((s, r) => s + r.spentTodayUsd, 0) * 100) / 100, agents: rows };
+    return { fleetPaused: p.fleetPaused, total: rows.length, active: rows.filter((r) => r.status === "active").length, spentTodayUsd: Math.round(rows.reduce((s, r) => s + r.spentTodayUsd, 0) * 100) / 100, balanceError, agents: rows };
   },
 });
 
