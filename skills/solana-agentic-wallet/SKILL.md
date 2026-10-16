@@ -54,6 +54,7 @@ Policy, approvals and the ledger are the same across all of them. It also **rece
 | Wallet backends | `owner backends` | [owner.md](references/owner.md) |
 | Switch wallet backend | `owner set-backend` | [owner.md](references/owner.md) |
 | Connection status | `wallet status` | [wallet.md](references/wallet.md) |
+| Which agent am I | `wallet whoami` | [wallet.md](references/wallet.md) |
 | Supported chains | `wallet chains` | [wallet.md](references/wallet.md) |
 | Wallet address | `wallet address` | [wallet.md](references/wallet.md) |
 | Security settings and quotas | `wallet settings` | [wallet.md](references/wallet.md) |
@@ -81,6 +82,15 @@ Policy, approvals and the ledger are the same across all of them. It also **rece
 | Ledger | `ledger list` | [receiving.md](references/receiving.md) |
 | Export CSV | `ledger export` | [receiving.md](references/receiving.md) |
 | Pay several people | `wallet pay-many` | [wallet.md](references/wallet.md) |
+| Create fleet agents | `owner fleet create` | [fleet.md](references/fleet.md) |
+| List fleet agents | `owner fleet list` | [fleet.md](references/fleet.md) |
+| Fund fleet agents from the treasury | `owner fleet fund` | [fleet.md](references/fleet.md) |
+| Pause agents | `owner fleet pause` | [fleet.md](references/fleet.md) |
+| Resume agents | `owner fleet resume` | [fleet.md](references/fleet.md) |
+| Kill an agent | `owner fleet kill` | [fleet.md](references/fleet.md) |
+| Change agent policy overrides | `owner fleet set-policy` | [fleet.md](references/fleet.md) |
+| Reissue an agent's session token | `owner fleet token` | [fleet.md](references/fleet.md) |
+| Fleet ledger | `owner fleet ledger` | [fleet.md](references/fleet.md) |
 
 ## Preflight
 

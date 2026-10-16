@@ -23,6 +23,8 @@ export interface Pairing {
 export interface Session {
   id: string; // sha256(token)
   label?: string;
+  /** Fleet agent this session acts as; undefined = the single default wallet. */
+  agentId?: string;
   createdAt: number;
   lastActiveAt: number;
   expiresAt: number;
@@ -113,6 +115,21 @@ export function revoke(token: string | null | undefined): boolean {
   const s = sessions.get(hash(token));
   if (s) sessions.remove(s.id);
   return Boolean(s);
+}
+
+/** Owner side: issue a session for a fleet agent without the pairing dance. Returns the plain token once. */
+export function issueSession(agentId: string, label?: string): string {
+  const token = randomBytes(32).toString("hex");
+  const pol = readPolicy();
+  const now = Date.now();
+  sessions.put({ id: hash(token), label, agentId, createdAt: now, lastActiveAt: now, expiresAt: now + parseDuration(pol.maxSigninDuration), inactiveSignOutAt: now + parseDuration(pol.inactiveSignoutDuration) });
+  return token;
+}
+
+export function revokeAgentSessions(agentId: string): number {
+  const mine = sessions.all().filter((s) => s.agentId === agentId);
+  sessions.write(sessions.all().filter((s) => s.agentId !== agentId));
+  return mine.length;
 }
 
 export function revokeAll(): number {

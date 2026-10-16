@@ -4,6 +4,7 @@ import { z } from "zod";
 import { WalletError } from "./errors.js";
 import { authenticate } from "./session.js";
 import type { Ctx } from "./ctx.js";
+import { agents, runAsAgent } from "./agents.js";
 import type { Category } from "./orders.js";
 
 export type Access = "public" | "session" | "owner";
@@ -63,6 +64,8 @@ export async function exec(ctx: Ctx, name: string, raw: Record<string, unknown>)
   if (cmd.access === "session" && ctx.role !== "owner") {
     ctx.session = authenticate(ctx.token);
   }
+  const agent = ctx.session?.agentId ? agents.get(ctx.session.agentId) : undefined;
+  if (ctx.session?.agentId && !agent) throw new WalletError("NOT_SIGNED_IN", "This session belongs to an agent that no longer exists.");
   let args: Record<string, unknown>;
   try {
     const schema = z.object(cmd.params);
@@ -74,7 +77,7 @@ export async function exec(ctx: Ctx, name: string, raw: Record<string, unknown>)
     }
     throw e;
   }
-  return cmd.run(ctx, args as never);
+  return runAsAgent(agent, () => cmd.run(ctx, args as never));
 }
 
 // Param helpers: CLI flags arrive as strings, MCP args as typed JSON. These accept both.

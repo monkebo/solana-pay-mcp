@@ -4,6 +4,7 @@ import { Doc } from "./store.js";
 import { parseDuration } from "./config.js";
 import { WalletError } from "./errors.js";
 import type { BackendConfig } from "./backend.js";
+import { currentAgent } from "./agents.js";
 
 export type AbnormalHandling = "AutoReject" | "NeedConfirmation";
 
@@ -30,6 +31,8 @@ export interface Policy {
   /** Vault mode: the owner must approve each `auth signin` pairing. Local mode: auto-approved. */
   requirePairingApproval: boolean;
   x402DailyLimitUsd: number;
+  /** Owner-wide stop: every fleet agent is refused until resumed. The treasury wallet is unaffected. */
+  fleetPaused: boolean;
   /** Which wallet executes: local key, Binance baw, HTTP signer, or a human's wallet via Solana Pay. */
   backend: BackendConfig;
 }
@@ -53,13 +56,22 @@ export function defaultPolicy(): Policy {
     inactiveSignoutDuration: "48h",
     requirePairingApproval: false,
     x402DailyLimitUsd: 20,
+    fleetPaused: false,
     backend: { kind: "local" },
   };
 }
 
 const doc = new Doc<Policy>("policy", defaultPolicy);
 
+/** Effective policy for the current call: the owner's policy, with the current fleet agent's overrides on top. */
 export function readPolicy(): Policy {
+  const base = doc.read();
+  const a = currentAgent();
+  return a ? { ...base, ...a.policy } : base;
+}
+
+/** The stored owner policy, without agent overrides. Owner commands edit this one. */
+export function readOwnerPolicy(): Policy {
   return doc.read();
 }
 
@@ -75,7 +87,7 @@ export function writePolicy(p: Policy): Policy {
 
 /** Owner-side patch with dot paths such as `devMode.enabled=true`. Values are JSON when parseable, else strings. */
 export function patchPolicy(pairs: Record<string, unknown>): Policy {
-  const p = structuredClone(readPolicy()) as Policy;
+  const p = structuredClone(readOwnerPolicy()) as Policy;
   for (const [path, raw] of Object.entries(pairs)) {
     let v: unknown = raw;
     if (typeof raw === "string") {

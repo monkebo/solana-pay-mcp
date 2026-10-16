@@ -8,6 +8,7 @@ import { quotaView, lockingOrders } from "../core/orders.js";
 import { refreshPending } from "../core/track.js";
 import { listContacts } from "../core/addressbook.js";
 import { activeBackend } from "../core/backend.js";
+import { currentAgent } from "../core/agents.js";
 
 define({
   name: "wallet.status",
@@ -26,6 +27,20 @@ define({
     const be = activeBackend();
     const st = await be.status(ctx);
     return { status: st.connected ? "CONNECTED" : "CREATING", backend: be.kind, backendLabel: be.label, detail: st.detail };
+  },
+});
+
+define({
+  name: "wallet.whoami",
+  cli: "wallet whoami",
+  title: "Which agent am I",
+  description: "The fleet agent this session acts as (name, role, address, status) or the single default wallet.",
+  access: "session",
+  write: false,
+  params: {},
+  async run() {
+    const a = currentAgent();
+    return a ? { agent: { id: a.id, name: a.name, role: a.role, status: a.status }, address: a.address } : { agent: null, address: await walletAddress() };
   },
 });
 

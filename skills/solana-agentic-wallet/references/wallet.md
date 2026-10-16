@@ -12,6 +12,16 @@ UNCONNECTED (not signed in), CREATING (signed in, no key yet), CONNECTED (ready)
 saw wallet status --json
 ```
 
+### `wallet whoami`
+
+The fleet agent this session acts as (name, role, address, status) or the single default wallet.
+
+- Access: session
+
+```bash
+saw wallet whoami --json
+```
+
 ### `wallet chains`
 
 Networks this wallet supports. One: Solana (CT_501), mainnet or devnet per SOLANA_CLUSTER.

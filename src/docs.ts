@@ -16,6 +16,7 @@ const GROUPS: Record<string, { file: string; title: string; intro: string }> = {
   "x402-payment": { file: "x402-payment.md", title: "x402 payments", intro: "Buyer side of HTTP 402. `preview` ranks options; `sign` returns the header to replay with (one use, ~60 s). `pay` does the whole loop for one URL. Confirm with the user before signing, before switching options, and before paying for a different resource." },
   invoice: { file: "receiving.md", title: "Receiving: invoices and the ledger", intro: "Invoices carry a fresh reference key. `invoice status` reports UNPAID, CONFIRMED or SETTLED with confidence `exact` (reference key) or `probable` (matching inflow). `ledger rebuild` re-derives everything from the chain." },
   ledger: { file: "receiving.md", title: "Receiving: invoices and the ledger", intro: "" },
+  "owner fleet": { file: "fleet.md", title: "Fleet (owner)", intro: "Many agents under one owner: each has its own key, policy overrides, quotas and lock, and all share one ledger. Agents are paused or killed by the owner; a paused agent gets AGENT_PAUSED, a paused fleet FLEET_PAUSED." },
   owner: { file: "owner.md", title: "Owner commands", intro: "Never callable with an agent session. The owner runs these on the vault host or in the owner console. Agents may tell the user which owner command would unblock them." },
   "skill-check": { file: "preflight.md", title: "Preflight", intro: "Run at the start of each conversation: skill version, CLI version, wallet status." },
   "cli-check": { file: "preflight.md", title: "Preflight", intro: "" },
@@ -45,7 +46,7 @@ export function generate(outDir: string): void {
   const byFile = new Map<string, { title: string; intro: string; cmds: Command[] }>();
   const routing: string[] = [];
   for (const cmd of commands()) {
-    const group = cmd.cli.split(" ")[0];
+    const group = cmd.cli.startsWith("owner fleet") ? "owner fleet" : cmd.cli.split(" ")[0];
     const g = GROUPS[group] ?? { file: `${group}.md`, title: group, intro: "" };
     const e = byFile.get(g.file) ?? { title: g.title, intro: g.intro, cmds: [] };
     if (!e.intro && g.intro) e.intro = g.intro;

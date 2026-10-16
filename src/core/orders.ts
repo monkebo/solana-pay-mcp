@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { Collection } from "./store.js";
 import { WalletError } from "./errors.js";
 import { readPolicy, type Policy } from "./policy.js";
+import { currentAgent } from "./agents.js";
 
 export type Category = "general" | "x402";
 export type OrderKind = "send" | "revoke" | "x402" | "speed-up" | "cancel";
@@ -41,6 +42,8 @@ export interface Order {
   reasons?: string[];
   /** Which wallet executed it. */
   backend?: string;
+  /** Fleet agent that made it; undefined = the owner's treasury wallet. */
+  agentId?: string;
   details: Record<string, unknown>;
   error?: string;
 }
@@ -49,7 +52,7 @@ export const orders = new Collection<Order>("orders");
 
 export function newOrder(o: Omit<Order, "id" | "createdAt" | "updatedAt" | "txHash" | "details"> & Partial<Pick<Order, "txHash" | "details" | "id">>): Order {
   const now = Date.now();
-  return orders.put({ txHash: null, details: {}, ...o, id: o.id ?? `ord_${randomUUID().slice(0, 12)}`, createdAt: now, updatedAt: now });
+  return orders.put({ txHash: null, details: {}, agentId: currentAgent()?.id, ...o, id: o.id ?? `ord_${randomUUID().slice(0, 12)}`, createdAt: now, updatedAt: now });
 }
 
 export function setOrder(id: string, patch: Partial<Order>): Order {
@@ -67,9 +70,14 @@ export function expireStale(): void {
 const DAY = 24 * 3600 * 1000;
 
 /** USD spent in a category in the last 24h. Counted at submission, like the Binance quotas. */
+/** Orders of the wallet this call runs as: one fleet agent, or the treasury. */
+export function myOrders(): Order[] {
+  const id = currentAgent()?.id;
+  return orders.all().filter((o) => o.agentId === id);
+}
+
 export function quotaUsed(category: Category, now = Date.now()): number {
-  return orders
-    .all()
+  return myOrders()
     .filter((o) => o.category === category && !NOT_COUNTED.includes(o.status) && o.createdAt >= now - DAY)
     .reduce((a, o) => a + (o.usdValue ?? 0), 0);
 }
@@ -109,7 +117,7 @@ export function assertQuota(category: Category, usd: number, p = readPolicy()): 
 /** Orders that hold the transaction lock: awaiting owner confirmation, or broadcast but not yet confirmed. */
 export function lockingOrders(): Order[] {
   expireStale();
-  return orders.all().filter((o) => o.status === "PENDING_CONFIRMATION" || o.status === "BROADCASTED");
+  return myOrders().filter((o) => o.status === "PENDING_CONFIRMATION" || o.status === "BROADCASTED");
 }
 
 export function assertUnlocked(exceptId?: string): void {

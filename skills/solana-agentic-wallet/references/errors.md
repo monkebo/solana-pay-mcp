@@ -25,6 +25,8 @@ Every failure is `{ "success": false, "error": { "code", "name", "message", "dat
 | 3008 | PRICE_UNAVAILABLE |
 | 3009 | LOCKED |
 | 3010 | CONFIRMATION_REQUIRED |
+| 3011 | AGENT_PAUSED |
+| 3012 | FLEET_PAUSED |
 | 4001 | INSUFFICIENT_BALANCE |
 | 4002 | SIMULATION_FAILED |
 | 4003 | BROADCAST_FAILED |

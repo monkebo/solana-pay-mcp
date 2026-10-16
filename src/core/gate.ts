@@ -6,6 +6,7 @@ import { readPolicy } from "./policy.js";
 import { assertQuota, assertUnlocked, newOrder, orders, queueForConfirmation, setOrder, type Category, type OrderKind, type OrderStatus } from "./orders.js";
 import { refreshPending } from "./track.js";
 import { activeBackend } from "./backend.js";
+import { assertAgentActive } from "./agents.js";
 
 export interface Pending {
   orderId: string;
@@ -45,6 +46,7 @@ export function isPending(x: unknown): x is Pending {
 
 export async function gated<T>(ctx: Ctx, g: GateInput<T>): Promise<T | Pending> {
   const replay = Boolean(g.orderId && ctx.approved);
+  assertAgentActive(readPolicy().fleetPaused);
   if (g.needsLock !== false) await refreshPending(ctx); // settle anything that already landed before judging the lock
   if (!replay) {
     assertQuota(g.category, g.usd);

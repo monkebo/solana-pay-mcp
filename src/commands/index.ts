@@ -8,3 +8,4 @@ import "./wallet-send.js";
 import "./approvals.js";
 import "./x402.js";
 import "./invoice.js";
+import "./fleet.js";

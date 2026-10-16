@@ -2,8 +2,14 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { createKeyPairSignerFromBytes, createKeyPairSignerFromPrivateKeyBytes, getAddressEncoder, type Address, type KeyPairSigner } from "@solana/kit";
-import { keyPath } from "./config.js";
+import { keyPath as treasuryKeyPath } from "./config.js";
 import { WalletError } from "./errors.js";
+import { currentAgent } from "./agents.js";
+
+/** The key file for this call: the fleet agent's own key, or the owner's treasury key. */
+export function keyPath(): string {
+  return currentAgent()?.keyPath ?? treasuryKeyPath();
+}
 
 export function hasKey(): boolean {
   return existsSync(keyPath());

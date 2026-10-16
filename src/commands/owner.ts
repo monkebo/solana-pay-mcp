@@ -10,6 +10,7 @@ import { orders, pendingConfirmations, setOrder } from "../core/orders.js";
 import { WalletError } from "../core/errors.js";
 import { exec } from "../core/registry.js";
 import { activeBackend, backendKinds, resetBackendCache, type BackendKind } from "../core/backend.js";
+import { agents, runAsAgent } from "../core/agents.js";
 
 define({
   name: "owner.keygen",
@@ -196,7 +197,7 @@ define({
       setOrder(o.id, { status: "EXPIRED", action: undefined });
       throw new WalletError("PREVIEW_EXPIRED", `Order ${orderId} expired before approval. Ask the agent to submit it again.`);
     }
-    const result = await exec({ ...ctx, role: "owner", approved: true }, o.action.command, { ...o.action.params, orderId: o.id });
+    const result = await runAsAgent(o.agentId ? agents.get(o.agentId) : undefined, () => exec({ ...ctx, role: "owner", approved: true }, o.action!.command, { ...o.action!.params, orderId: o.id }));
     return { orderId: o.id, result };
   },
 });
