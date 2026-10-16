@@ -106,3 +106,23 @@ describe("vault HTTP", () => {
     await client.close();
   });
 });
+
+describe("fleet over HTTP", () => {
+  it("owner creates agents, agent acts as itself, console shows the fleet", async () => {
+    const made = await post("/v1/owner/exec", { command: "owner.fleet-create", params: { role: "tester", count: 2, dailyLimitUsd: 1 } }, "owner-secret-token");
+    expect(made.status).toBe(200);
+    const [a, b] = made.body.data.agents as { name: string; token: string; address: string }[];
+    const who = await post("/v1/exec", { command: "wallet.whoami" }, a.token);
+    expect(who.body.data).toMatchObject({ agent: { name: "tester-01" }, address: a.address });
+    const settings = await post("/v1/exec", { command: "wallet.settings" }, b.token);
+    expect(settings.body.data.dailyLimit).toBe(1);
+    // agent tokens cannot reach fleet commands
+    const denied = await post("/v1/exec", { command: "owner.fleet-kill", params: { target: "tester-01" } }, a.token);
+    expect(denied.body.error.name).toBe("OWNER_REQUIRED");
+    const list = await post("/v1/owner/exec", { command: "owner.fleet-list" }, "owner-secret-token");
+    expect(list.body.data.agents.map((x: { name: string }) => x.name)).toEqual(["tester-01", "tester-02"]);
+    const page = await (await fetch(base + "/")).text();
+    expect(page).toContain('id="fleet"');
+    expect(page).toContain("owner.fleet-list");
+  });
+});

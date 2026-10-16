@@ -120,6 +120,17 @@ function render(sc) {
     const rows = (sc.rows || []).map((r) => `<tr><td><b>${esc(r.symbol)}</b> <span class="mono muted">${esc(short(r.address))}</span></td><td class="r">${esc(r.balance)}</td><td class="r">${r.value === null ? "-" : "$" + esc(r.value)}</td></tr>`).join("");
     const total = (sc.rows || []).reduce((a, r) => a + Number(r.value || 0), 0);
     root.innerHTML = `<div class="top"><span class="label">Balances</span><span class="pill">$${total.toFixed(2)}</span></div><table>${rows || "<tr><td class='muted'>empty</td></tr>"}</table>`;
+  } else if (v === "fleet") {
+    const list = (sc.agents || []).slice().sort((a, b) => Number(b.usdc ?? 0) - Number(a.usdc ?? 0));
+    if (!list.length && sc.tool !== "owner_fleet_list") { rerun("owner_fleet_list", { balances: true }); return; }
+    const rows = list.map((a, i) => `<tr><td>${i + 1}</td><td><b>${esc(a.name)}</b> <span class="muted">${esc(a.role)}</span><br><span class="pill ${a.status === "active" ? "" : "bad"}">${esc(String(a.status).toUpperCase())}</span></td><td class="r">${a.usdc !== undefined ? esc(a.usdc) + " USDC" : "-"}</td><td class="r">$${esc(a.spentTodayUsd)} / $${esc(a.dailyLimitUsd)}</td><td class="r">${a.status === "active" ? `<button data-pause="${esc(a.name)}">Pause</button>` : a.status === "paused" ? `<button data-resume="${esc(a.name)}">Resume</button>` : ""}</td></tr>`).join("");
+    root.innerHTML = `<div class="top"><span class="label">Fleet · ${esc(sc.active)} of ${esc(sc.total)} active</span><span class="pill ${sc.fleetPaused ? "bad" : ""}">${sc.fleetPaused ? "PAUSED" : "$" + esc(Number(sc.spentTodayUsd || 0).toFixed(2)) + " today"}</span></div>
+      <table>${rows || "<tr><td class='muted'>no agents</td></tr>"}</table>
+      <div class="actions"><button class="${sc.fleetPaused ? "" : "primary"}" id="all">${sc.fleetPaused ? "Resume all" : "Pause all"}</button><button id="refresh">Refresh balances</button></div><div id="msg"></div>`;
+    document.getElementById("all").onclick = () => rerun(sc.fleetPaused ? "owner_fleet_resume" : "owner_fleet_pause", { target: "all" });
+    document.getElementById("refresh").onclick = () => rerun("owner_fleet_list", { balances: true });
+    root.querySelectorAll("[data-pause]").forEach((b) => (b.onclick = () => rerun("owner_fleet_pause", { target: b.dataset.pause })));
+    root.querySelectorAll("[data-resume]").forEach((b) => (b.onclick = () => rerun("owner_fleet_resume", { target: b.dataset.resume })));
   } else if (v === "pending") {
     const rows = (sc.rows || []).map((o) => `<tr><td><b>${esc(o.summary)}</b><br><span class="muted">${esc((o.reasons || []).join("; "))}</span><div class="actions" style="margin-top:6px"><button class="primary" data-approve="${esc(o.id)}">Approve</button><button data-reject="${esc(o.id)}">Reject</button></div></td><td class="r">$${esc((o.usdValue || 0).toFixed(2))}</td></tr>`).join("");
     root.innerHTML = `<div class="top"><span class="label">Waiting for your approval</span><span class="pill ${(sc.rows || []).length ? "bad" : ""}">${(sc.rows || []).length}</span></div><table>${rows || "<tr><td class='muted'>nothing waiting</td></tr>"}</table><div id="msg"></div>`;
@@ -140,7 +151,7 @@ async function rerun(name, args) {
   const r = await call(name, args);
   if (r?.structuredContent) {
     const sc = r.structuredContent;
-    render(sc.tool === "owner_approve" && sc.result ? { view: "send", ...sc.result } : sc);
+    render(sc.tool === "owner_approve" && sc.result ? { view: "send", ...sc.result } : sc.view === "fleet" && !sc.agents ? { view: "fleet", tool: "pending" } : sc);
     app.updateModelContext?.({ content: [{ type: "text", text: r.content?.[0]?.text ?? "Done from the card." }] }).catch(() => {});
   } else btns.forEach((b) => (b.disabled = false));
 }

@@ -29,6 +29,8 @@ export function ownerConsoleHtml(publicUrl: string, pairingCode = ""): string {
 <section><h2>Status</h2><div id="status" class="muted">…</div></section>
 <section><h2>Agent sign-in requests</h2><div class="row"><input id="code" placeholder="6-digit pairing code" value="${esc(pairingCode)}"><button class="primary" onclick="run('owner.approve-pairing',{pairingCode:v('code')})">Approve</button><button onclick="run('owner.reject-pairing',{pairingCode:v('code')})">Reject</button></div><div id="pairings"></div></section>
 <section><h2>Waiting for your approval</h2><div id="pending" class="muted">…</div></section>
+<section><h2>Fleet</h2><div class="row"><span id="fleet-sum" class="muted">…</span><button id="fleet-pause" class="primary" onclick="fleetToggle()">Pause all</button></div><div style="overflow-x:auto"><table id="fleet"></table></div></section>
+<section><h2>Ledger</h2><div style="overflow-x:auto"><table id="ledger"></table></div></section>
 <section><h2>Wallet backend</h2><div class="row"><select id="bk"><option value="local">local: self-custody key on the vault</option><option value="baw">baw: Binance Agentic Wallet</option><option value="signer">signer: HTTP remote signer</option><option value="solana-pay">solana-pay: a human's wallet (scan to sign)</option></select><button class="primary" onclick="setBackend()">Switch</button></div>
 <div class="row" style="margin-top:8px"><input id="bk-url" placeholder="signer URL"><input id="bk-token" placeholder="signer token"><input id="bk-address" placeholder="address (signer / solana-pay)"></div><div id="backend" class="muted"></div></section>
 <section><h2>Policy</h2><textarea id="policy" rows="14" class="mono"></textarea><div class="row" style="margin-top:8px"><button class="primary" onclick="savePolicy()">Save policy</button><button onclick="run('owner.revoke-sessions',{})">Sign every agent out</button></div></section>
@@ -53,7 +55,18 @@ const pd=await call('owner.pending',{});document.getElementById('pending').inner
 const pol=await call('owner.policy',{});document.getElementById('policy').value=JSON.stringify(pol,null,2);
 const cs=await call('owner.contacts',{});document.getElementById('contacts').innerHTML='<table>'+cs.map(c=>'<tr><td>'+e(c.name)+'</td><td class="mono">'+e(c.address)+'</td><td><button onclick="run(\\'owner.remove-contact\\',{name:\\''+e(c.name)+'\\'})">remove</button></td></tr>').join('')+'</table>';
 say('')}catch(err){say(err.message,true)}}
-document.getElementById('tok').value=tok();refresh();setInterval(refresh,5000);
+let fleetPaused=false;
+async function fleetToggle(){await run('owner.fleet-'+(fleetPaused?'resume':'pause'),{target:'all'});await fleet(true)}
+async function fleet(withBalances){if(!tok())return;try{
+const f=await call('owner.fleet-list',{balances:withBalances});fleetPaused=f.fleetPaused;
+document.getElementById('fleet-pause').textContent=fleetPaused?'Resume all':'Pause all';
+document.getElementById('fleet-sum').innerHTML=(fleetPaused?'<span class="pill bad">FLEET PAUSED</span> ':'')+f.active+' of '+f.total+' agents active · spent today $'+e(f.spentTodayUsd.toFixed(2));
+const rows=[...f.agents].sort((a,b)=>Number(b.usdc??0)-Number(a.usdc??0));
+document.getElementById('fleet').innerHTML='<tr><th>#</th><th>agent</th><th>role</th><th>USDC</th><th>SOL</th><th>today</th><th>status</th><th></th></tr>'+rows.map((a,i)=>'<tr><td>'+(i+1)+'</td><td><b>'+e(a.name)+'</b><br><a class="mono" href="https://explorer.solana.com/address/'+e(a.address)+'?cluster=devnet" target="_blank">'+e(a.address.slice(0,4)+'…'+a.address.slice(-4))+'</a></td><td>'+e(a.role)+'</td><td class="mono">'+(a.usdc??'…')+'</td><td class="mono">'+(a.sol??'…')+'</td><td class="mono">$'+e(a.spentTodayUsd)+' / $'+e(a.dailyLimitUsd)+'</td><td><span class="pill '+(a.status==='active'?'':'bad')+'">'+e(a.status.toUpperCase())+'</span>'+(a.pausedReason?'<br><span class="muted">'+e(a.pausedReason)+'</span>':'')+'</td><td>'+(a.status==='active'?'<button onclick="run(\'owner.fleet-pause\',{target:\''+e(a.name)+'\'})">Pause</button> ':a.status==='paused'?'<button onclick="run(\'owner.fleet-resume\',{target:\''+e(a.name)+'\'})">Resume</button> ':'')+(a.status!=='killed'?'<button onclick="run(\'owner.fleet-kill\',{target:\''+e(a.name)+'\',reason:\'killed from console\'})">Kill</button>':'')+'</td></tr>').join('');
+const l=await call('owner.fleet-ledger',{limit:30});
+document.getElementById('ledger').innerHTML='<tr><th>when</th><th>from</th><th>to</th><th>amount</th><th>status</th></tr>'+l.rows.map(r=>'<tr><td class="muted">'+e(r.at.slice(11,19))+'</td><td><b>'+e(r.agent)+'</b></td><td>'+e(r.to||'')+(r.memo?'<br><span class="muted">'+e(r.memo)+'</span>':'')+'</td><td class="mono">'+(r.amount?e(r.amount)+' '+e(r.token||''):'$'+e(r.usd??0))+'</td><td>'+(r.explorer?'<a href="'+e(r.explorer)+'" target="_blank">':'')+'<span class="pill '+(/FAILED|REJECTED|EXPIRED/.test(r.status)?'bad':'')+'">'+e(r.status)+'</span>'+(r.explorer?'</a>':'')+(r.error?'<br><span class="bad">'+e(r.error.slice(0,80))+'</span>':'')+'</td></tr>').join('');
+}catch(err){say(err.message,true)}}
+document.getElementById('tok').value=tok();refresh();setInterval(refresh,5000);fleet(true);setInterval(()=>fleet(false),2000);setInterval(()=>fleet(true),15000);
 </script></main></body></html>`;
 }
 

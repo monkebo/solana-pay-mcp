@@ -77,7 +77,7 @@ Risky or large actions return `PENDING_CONFIRMATION`; the owner approves or reje
 | Group | Commands |
 |---|---|
 | auth | `signin`, `verify`, `signout` |
-| wallet | `status`, `chains`, `address`, `balance`, `tx-history`, `settings`, `tx-lock`, `gas-price`, `contacts`, `send`, `pay-many`, `speed-up`, `cancel` |
+| wallet | `status`, `whoami`, `chains`, `address`, `balance`, `tx-history`, `settings`, `tx-lock`, `gas-price`, `contacts`, `send`, `pay-many`, `speed-up`, `cancel` |
 | invoice / ledger | `invoice create/status/list`, `ledger list/export/rebuild` |
 | approvals | `list`, `detail`, `revoke` (SPL delegates) |
 | x402-payment | `preview`, `sign`, `pay`, `list` |
@@ -86,6 +86,9 @@ Risky or large actions return `PENDING_CONFIRMATION`; the owner approves or reje
 Every command takes `--json` and returns `{ success, data }` or `{ success: false, error: { code, name, message } }`. The full reference is generated from the code: [`skills/solana-agentic-wallet`](skills/solana-agentic-wallet/SKILL.md).
 
 ## What the owner controls
+
+`saw owner fleet …`: create, fund, list, pause, resume, kill, set-policy, token, ledger (see Fleets above).
+
 
 `saw owner policy` / `saw owner set-policy field=value …`
 
@@ -98,6 +101,28 @@ Every command takes `--json` and returns `{ success, data }` or `{ success: fals
 - `backend`: `saw owner set-backend --kind local|baw|signer|solana-pay`
 
 Defaults fail closed: $100/day, $50 per payment, contacts only, stables and SOL only, unknown tokens blocked, no USD price means no send.
+
+## Fleets: a hundred agents, one policy, one kill switch
+
+Binance gives one person one agent wallet, paired through its app. `saw` gives a developer as many as they want, from code, each with its own key and its own limits, under one owner.
+
+```bash
+saw owner fleet create --role translator --count 10 --dailyLimitUsd 1 --maxPaymentUsd 0.2   # 10 keys, 10 session tokens
+saw owner fleet create --role buyer --count 5 --dailyLimitUsd 1.5 --maxPaymentUsd 0.3
+saw owner fleet fund --amount 2 --sol 0.02          # treasury → every agent, 5 per transaction
+saw owner fleet list --balances                     # leaderboard: USDC, SOL, spent today vs limit, status
+saw owner fleet set-policy researcher dailyLimitUsd=0.5
+saw owner fleet pause buyer-01 --reason "burning budget"   # AGENT_PAUSED on its next send
+saw owner fleet pause all                           # FLEET_PAUSED for everyone; the treasury still works
+saw owner fleet kill buyer-01                       # sessions revoked, key kept for the owner to sweep
+saw owner fleet ledger                              # who paid whom, across every agent and the treasury
+```
+
+Each agent runs with its token as the session (`SAW_VAULT_URL=https://vault saw wallet send …`, or the MCP connector with `Authorization: Bearer <token>`). Agents are address-book entries by name, so `wallet send --recipient translator-03` just works. Quotas and the transaction lock are per agent: twenty agents pay in parallel without blocking each other.
+
+The owner console shows the fleet as a live leaderboard with pause, resume and kill buttons, and a ledger of every payment. In Claude, `owner_fleet_list` renders the same as a card.
+
+`scripts/fleet-sim.mjs` runs a market on devnet: buyers pay translators and researchers for jobs, one buyer overspends on purpose, the owner kills it from the console, the rest keep going.
 
 ## Receiving
 

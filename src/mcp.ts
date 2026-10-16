@@ -18,6 +18,7 @@ const UI = "ui://solana-pay/wallet.html";
 const VIEWS: Record<string, string> = {
   "wallet.send": "send", "wallet.pay-many": "batch", "wallet.balance": "balance", "wallet.status": "status", "wallet.settings": "status",
   "invoice.create": "invoice", "invoice.status": "invoice", "owner.pending": "pending", "owner.approve": "send", "owner.backends": "status",
+  "owner.fleet-list": "fleet", "owner.fleet-pause": "fleet", "owner.fleet-resume": "fleet", "owner.fleet-kill": "fleet",
 };
 const ALIASES: Record<string, { to: string; map?: (a: Record<string, unknown>) => Record<string, unknown> }> = {
   create_invoice: { to: "invoice.create" },
