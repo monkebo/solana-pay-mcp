@@ -18,7 +18,7 @@ import { getSetComputeUnitLimitInstruction, getSetComputeUnitPriceInstruction } 
 import type { Ctx } from "./ctx.js";
 import { loadSigner } from "./signer.js";
 import { activeBackend, notSigning } from "./backend.js";
-import { WalletError } from "./errors.js";
+import { WalletError, jsonSafe } from "./errors.js";
 import { DEFAULT_CU, gasLevels, type GasLevel } from "./view.js";
 
 export interface Broadcast {
@@ -104,7 +104,7 @@ export function signatureOf(signed: Parameters<typeof getSignatureFromTransactio
 }
 
 export function explainSimError(err: unknown, logs: string[]): string {
-  const s = JSON.stringify(err);
+  const s = jsonSafe(err);
   const last = logs.filter((l) => /Error|failed|insufficient/i.test(l)).slice(-2).join(" | ");
   if (/InsufficientFundsForRent|insufficient lamports/i.test(s + last)) return `insufficient SOL for fees/rent (${last || s})`;
   if (/"Custom":1\b|insufficient funds/i.test(s + last)) return `insufficient token balance (${last || s})`;

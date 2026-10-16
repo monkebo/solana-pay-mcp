@@ -115,3 +115,14 @@ describe("registry access control", () => {
     await expect(exec(createCtx({ role: "owner" }), "owner.add-contact", { name: "x" })).rejects.toMatchObject({ name: "INVALID_PARAM" });
   });
 });
+
+describe("bigint-safe errors", () => {
+  it("explains a simulation error that carries BigInts and serializes error data", async () => {
+    const { explainSimError } = await import("../src/core/tx.js");
+    const { WalletError } = await import("../src/core/errors.js");
+    const msg = explainSimError({ InstructionError: [2n, { Custom: 1n }] }, ["Program log: Error: insufficient funds"]);
+    expect(msg).toMatch(/insufficient token balance/);
+    const e = new WalletError("SIMULATION_FAILED", "x", { err: { InstructionError: [2n, { Custom: 1n }] } });
+    expect(JSON.stringify(e.toJSON())).toContain('"Custom":"1"');
+  });
+});

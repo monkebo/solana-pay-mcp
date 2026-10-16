@@ -2,6 +2,7 @@
 import { type Signature } from "@solana/kit";
 import type { Ctx } from "./ctx.js";
 import { orders, setOrder, type Order } from "./orders.js";
+import { jsonSafe } from "./errors.js";
 
 export async function refreshPending(ctx: Ctx): Promise<Order[]> {
   const pending = orders.all().filter((o) => o.status === "BROADCASTED" && o.txHash);
@@ -19,7 +20,7 @@ export async function refreshPending(ctx: Ctx): Promise<Order[]> {
     const o = pending[i];
     const s = statuses[i];
     if (s) {
-      if (s.err) out.push(setOrder(o.id, { status: "FAILED", error: JSON.stringify(s.err), signedTx: undefined }));
+      if (s.err) out.push(setOrder(o.id, { status: "FAILED", error: jsonSafe(s.err), signedTx: undefined }));
       else if (s.confirmationStatus === "confirmed" || s.confirmationStatus === "finalized") out.push(setOrder(o.id, { status: "CONFIRMED", signedTx: undefined }));
       else out.push(o);
       continue;

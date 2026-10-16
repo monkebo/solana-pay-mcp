@@ -14,7 +14,7 @@ import { getAddMemoInstruction } from "@solana-program/memo";
 import "./commands/index.js";
 import { exec, get as getCommand } from "./core/registry.js";
 import { createCtx } from "./core/ctx.js";
-import { toWalletError, WalletError } from "./core/errors.js";
+import { toWalletError, WalletError, jsonSafe } from "./core/errors.js";
 import { home } from "./core/config.js";
 import { hash } from "./core/session.js";
 import { invoices, invoiceView, refreshInvoice } from "./core/invoice.js";
@@ -59,7 +59,7 @@ async function body(req: IncomingMessage): Promise<string> {
 
 function json(res: ServerResponse, status: number, v: unknown): void {
   res.writeHead(status, { "content-type": "application/json", "access-control-allow-origin": "*", "access-control-allow-headers": "content-type, authorization", "access-control-allow-methods": "GET, POST, OPTIONS" });
-  res.end(JSON.stringify(v));
+  res.end(jsonSafe(v));
 }
 
 function html(res: ServerResponse, status: number, s: string): void {

@@ -5,8 +5,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 HOME_DIR="${SAW_HOME:-$HOME/.solana-pay-mcp}"
 mkdir -p -m 700 "$HOME_DIR"
-if [[ "${1:-}" == "stop" ]]; then pkill -f "dist/saw.js vault" || true; pkill -f "cloudflared tunnel" || true; echo stopped; exit 0; fi
+if [[ "${1:-}" == "stop" ]]; then pkill -f "dist/saw.js vault" || true; pkill -f "dist/index.js serve" || true; pkill -f "cloudflared tunnel" || true; echo stopped; exit 0; fi
 pkill -f "dist/saw.js vault" 2>/dev/null || true
+pkill -f "dist/index.js serve" 2>/dev/null || true
 pkill -f "cloudflared tunnel" 2>/dev/null || true
 nohup cloudflared tunnel --url http://localhost:3000 > "$HOME_DIR/tunnel.log" 2>&1 &
 for _ in $(seq 1 30); do URL=$(grep -ao 'https://[a-z0-9-]*\.trycloudflare\.com' "$HOME_DIR/tunnel.log" | head -1 || true); [[ -n "$URL" ]] && break; sleep 1; done

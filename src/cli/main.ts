@@ -4,7 +4,7 @@ import { parseArgv } from "./args.js";
 import { human } from "./format.js";
 import { commands, exec, matchCli, type Command } from "../core/registry.js";
 import { createCtx } from "../core/ctx.js";
-import { toWalletError, WalletError } from "../core/errors.js";
+import { toWalletError, WalletError, jsonSafe } from "../core/errors.js";
 import { localSession } from "../core/session.js";
 import { CLI_VERSION } from "../core/config.js";
 
@@ -38,7 +38,7 @@ function helpText(): string {
 
 export async function runCli(argv: string[]): Promise<number> {
   const parsed = parseArgv(argv);
-  const out = (v: unknown) => process.stdout.write((parsed.json ? JSON.stringify(v) : human(v)) + "\n");
+  const out = (v: unknown) => process.stdout.write((parsed.json ? jsonSafe(v) : human(v)) + "\n");
   if (!parsed.words.length || parsed.words[0] === "help" || parsed.flags.help) {
     process.stdout.write(helpText() + "\n");
     return 0;

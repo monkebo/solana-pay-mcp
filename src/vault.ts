@@ -1,6 +1,6 @@
 // `saw vault serve`: run the vault. Holds the key and policy; agents connect with session tokens.
 import { createServer } from "node:http";
-import { createHandler, ownerTokenFile } from "./http.js";
+import { createHandler, ownerTokenFile, ownerTokenHash } from "./http.js";
 import { readPolicy, patchPolicy } from "./core/policy.js";
 import { cluster, home } from "./core/config.js";
 
@@ -17,6 +17,7 @@ export async function startVault(args: string[]): Promise<void> {
   const port = Number(flag("--port") ?? process.env.PORT ?? 3000);
   const publicUrl = (flag("--public-url") ?? process.env.SAW_PUBLIC_URL ?? `http://localhost:${port}`).replace(/\/$/, "");
   if (!args.includes("--auto-approve") && !readPolicy().requirePairingApproval) patchPolicy({ requirePairingApproval: true });
+  ownerTokenHash(); // create the owner token file at boot so the console has something to paste
   const server = createServer(createHandler({ publicUrl }));
   server.listen(port, () => {
     console.error(`saw vault listening on ${publicUrl}  (cluster ${cluster()}, home ${home()})`);

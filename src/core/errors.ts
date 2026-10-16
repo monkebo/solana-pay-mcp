@@ -2,6 +2,16 @@
 //   { success: false, error: { code, name, message, data? } }
 // Codes are stable and documented in the skill; agents are told to relay `message` verbatim.
 
+/** JSON.stringify that survives the BigInts kit's RPC returns (slots, lamports, instruction indexes). */
+export function jsonSafe(v: unknown, space?: number): string {
+  return JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x), space);
+}
+
+/** Deep-convert BigInts to strings so a value can be stored or sent as JSON. */
+export function plain<T>(v: T): T {
+  return v === undefined ? v : (JSON.parse(jsonSafe(v)) as T);
+}
+
 export class WalletError extends Error {
   readonly code: number;
   readonly data?: unknown;
@@ -12,7 +22,7 @@ export class WalletError extends Error {
     this.data = data;
   }
   toJSON() {
-    return { code: this.code, name: this.name, message: this.message, ...(this.data !== undefined ? { data: this.data } : {}) };
+    return { code: this.code, name: this.name, message: this.message, ...(this.data !== undefined ? { data: plain(this.data) } : {}) };
   }
 }
 

@@ -8,7 +8,7 @@ import { z } from "zod";
 import "./commands/index.js";
 import { commands, exec, type Command } from "./core/registry.js";
 import { createCtx, type Role } from "./core/ctx.js";
-import { toWalletError } from "./core/errors.js";
+import { toWalletError, jsonSafe } from "./core/errors.js";
 import { localSession, approvePairing, startPairing, pollPairing } from "./core/session.js";
 import { readPolicy } from "./core/policy.js";
 import { walletHtml } from "./ui.js";
@@ -59,10 +59,10 @@ export function createMcpServer(o: McpOptions): McpServer {
       try {
         const data = await runCommand(o, cmd, params);
         const sc = view && data && typeof data === "object" && !Array.isArray(data) ? { view, tool: name, ...(data as Record<string, unknown>) } : view ? { view, tool: name, rows: data } : undefined;
-        return { content: [{ type: "text" as const, text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }], ...(sc ? { structuredContent: sc } : {}) };
+        return { content: [{ type: "text" as const, text: typeof data === "string" ? data : jsonSafe(data, 2) }], ...(sc ? { structuredContent: sc } : {}) };
       } catch (e) {
         const err = toWalletError(e);
-        return { content: [{ type: "text" as const, text: `${err.name} (${err.code}): ${err.message}${err.data !== undefined ? "\n" + JSON.stringify(err.data) : ""}` }], isError: true };
+        return { content: [{ type: "text" as const, text: `${err.name} (${err.code}): ${err.message}${err.data !== undefined ? "\n" + jsonSafe(err.data) : ""}` }], isError: true };
       }
     };
     if (view) registerAppTool(server, name, config as never, handler as never);
