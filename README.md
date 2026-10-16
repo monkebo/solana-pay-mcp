@@ -1,88 +1,137 @@
-# solana-pay-mcp
+# solana-pay-mcp · `saw`
 
-**Stripe agent toolkit, but USDC on Solana.**
+**A policy-controlled wallet for AI agents on Solana, that runs on whichever wallet you trust.**
 
-An MCP server that lets Claude (Claude Code, Claude Desktop, Cursor, any MCP client) invoice, get paid, and pay in USDC on Solana.
+Agents get one command surface (CLI, MCP tools, or an agent skill). The owner gets one policy, one approval queue and one ledger. Underneath, the money can sit in any of four places, and the agent never knows which:
 
-- "Invoice Acme 3000 USDC for October." → payment link + QR. Client pays from any wallet.
-- "Did Acme pay?" → checks the chain, returns the transaction.
-- "Pay Maria 400 USDC for the logo." → link + QR you approve in your own wallet.
+| Backend | What holds the key | When to use it |
+|---|---|---|
+| `local` | a keypair on the vault host (self-custody) | default; no account, no KYC, runs anywhere |
+| `baw` | [Binance Agentic Wallet](https://developers.binance.com/docs/agentic-wallet/welcome), via its `baw` CLI | you already use Binance; get DeFi and prediction markets too |
+| `signer` | any HTTP remote signer (Turnkey, Privy, Fireblocks, your HSM) | custody requirements |
+| `solana-pay` | a human's own wallet (Phantom, Solflare, Backpack) | the agent prepares, the human scans and signs |
 
-The server never holds a private key. It builds [Solana Pay](https://docs.solanapay.com) links and reads the chain. Signing happens in your wallet (Phantom, Solflare, Backpack).
+Switch with one owner command. Agents, prompts and skills do not change. Commands, flags and JSON mirror Binance's `baw`, so anything written for their wallet works here with one word changed.
+
+It also **receives**: USDC invoices with a settlement proof and payer attribution, a pay page any wallet can scan, and x402 paywalls for agents that sell.
 
 ## Install
 
-```bash
-npm install -g solana-pay-mcp   # or run from source: npm i && npm run build
-```
-
-Add to Claude Code:
+**Claude Code / Claude Desktop (MCP):**
 
 ```bash
-claude mcp add solana-pay -e SOLANA_PAY_RECIPIENT=<your wallet address> -e SOLANA_CLUSTER=devnet -- solana-pay-mcp
+npm install -g solana-pay-mcp
+claude mcp add solana-pay -e SOLANA_CLUSTER=devnet -- solana-pay-mcp
 ```
 
-Or in `claude_desktop_config.json` / `.mcp.json`:
+**Claude Code, Codex, OpenClaw, Copilot (skill + CLI):**
 
-```json
-{
-  "mcpServers": {
-    "solana-pay": {
-      "command": "solana-pay-mcp",
-      "env": { "SOLANA_PAY_RECIPIENT": "<your wallet address>", "SOLANA_CLUSTER": "devnet" }
-    }
-  }
-}
+```bash
+npx skills add monkebo/solana-pay-mcp/skills/solana-agentic-wallet
 ```
 
-## Tools
+**Any terminal or script:**
 
-| Tool | What it does |
+```bash
+saw help
+```
+
+## Two minutes, local mode
+
+```bash
+saw owner keygen                                   # key on this machine; fund it with ~0.01 SOL + USDC
+saw owner add-contact --name kevin --address <addr>
+saw owner set-policy dailyLimitUsd=100 maxPaymentUsd=25
+saw auth signin --json && saw auth verify --qrCodeId <id> --json   # self-approves in local mode
+saw wallet balance --json
+saw wallet send --amount 5 --recipient kevin --tokenAddress USDC --json
+saw invoice create --amount 120 --memo "October retainer" --json
+saw invoice status inv_xxxxxxxx --json
+```
+
+In Claude: "pay kevin 5 USDC for the logo", "invoice Acme 120 USDC for October", "did Acme pay?".
+
+## Real money: vault mode
+
+The vault holds the key and the policy. Agents hold only an expiring session token and must be paired by the owner.
+
+```bash
+saw vault serve --port 3000 --public-url https://wallet.example.com
+# owner console at /, owner token in ~/.solana-pay-mcp/owner-token
+```
+
+On the agent side (another machine, a phone via claude.ai, a CI job):
+
+```bash
+SAW_VAULT_URL=https://wallet.example.com saw auth signin      # shows a 6-digit code
+# owner approves it in the console (or `saw owner approve-pairing <code>` on the vault)
+SAW_VAULT_URL=https://wallet.example.com saw auth verify --qrCodeId <id>
+```
+
+claude.ai custom connector: `https://wallet.example.com/mcp` with header `Authorization: Bearer <session token>`. `scripts/phone.sh` starts the vault behind a cloudflared tunnel.
+
+Risky or large actions return `PENDING_CONFIRMATION`; the owner approves or rejects in the console within 5 minutes. The wallet is locked meanwhile.
+
+## What agents can do
+
+| Group | Commands |
 |---|---|
-| `create_invoice(amount, memo)` | Invoice to `SOLANA_PAY_RECIPIENT`. Returns Solana Pay link, QR, id. |
-| `send_payment(to, amount, memo, confirm?)` | Pay a contact or address. With an agent signer: preview, then `confirm=true` sends. Without: link/QR for your own wallet. |
-| `pay_many(payments[], confirm?)` | Batch: payroll, bounties, splits. Preview, then `confirm=true`. One tx per recipient. |
-| `add_contact(name, address)` / `list_contacts()` | Save `kevin → <address>` so you can say "pay kevin 5 USDC". |
-| `check_payment(id)` | Finds the on-chain USDC transfer for an invoice or payment. |
-| `list_requests()` | Everything this server created, with paid status. |
+| auth | `signin`, `verify`, `signout` |
+| wallet | `status`, `chains`, `address`, `balance`, `tx-history`, `settings`, `tx-lock`, `gas-price`, `contacts`, `send`, `pay-many`, `speed-up`, `cancel` |
+| invoice / ledger | `invoice create/status/list`, `ledger list/export/rebuild` |
+| market-order | `quote`, `swap`, `list` (Jupiter) |
+| limit-order | `buy`, `sell`, `list`, `cancel` (Jupiter trigger orders) |
+| approvals | `list`, `detail`, `revoke` (SPL delegates) |
+| contract-call / sign-message | `preview`, `execute`, `result`, `history` (Developer Mode) |
+| x402-payment | `preview`, `sign`, `pay`, `list` |
+| token | `search`, `audit` |
+| defi, prediction | forwarded to Binance when the backend is `baw` |
 
-> **Wallet reality check (tested 2026-10-10):** Phantom mobile parsed the Solana Pay link but could not load devnet balances; Solflare mobile rejected the link. Users will often pay by plain address instead. `check_payment` handles that: it first looks for the reference key, then falls back to scanning the recipient's USDC inflows after the request was created, and says which one matched.
+Every command takes `--json` and returns `{ success, data }` or `{ success: false, error: { code, name, message } }`. The full reference is generated from the code: [`skills/solana-agentic-wallet`](skills/solana-agentic-wallet/SKILL.md).
 
-Each request carries a fresh `reference` public key. Wallets attach it to the transaction, so `check_payment` finds it with one `getSignaturesForAddress` call and verifies recipient, mint and amount from the transaction's token balances. No webhooks, no indexer.
+## What the owner controls
+
+`saw owner policy` / `saw owner set-policy field=value …`
+
+- `dailyLimitUsd`, `maxPaymentUsd`, and separate daily limits for `x402`, `defi`, `prediction` and Developer Mode
+- `addressBookOnly`: sends only to saved contacts
+- `tradeAllTokens` / `allowedTokens`: which mints the agent may touch
+- `abnormalTxnHandling`: `AutoReject` or `NeedConfirmation` for unknown recipients, unverified tokens, large amounts, authority changes
+- `confirmAboveUsd`: anything above this waits for the owner
+- `maxSigninDuration`, `inactiveSignoutDuration`, `requirePairingApproval`
+- `devMode`: time-boxed external signing with its own limit (`saw owner dev-mode --enabled true --hours 24 --dailyLimitUsd 50`)
+- `backend`: `saw owner set-backend --kind local|baw|signer|solana-pay`
+
+Defaults fail closed: $100/day, $50 per payment, contacts only, stables and SOL only, unknown tokens blocked, no USD price means no send.
+
+## Receiving
+
+`invoice create` returns a Solana Pay link, a QR and a pay page at `/pay/<id>` on the vault. The page serves a **transaction request**, so Phantom, Solflare and Backpack sign a transaction we authored, with the reference key and memo inside, and settlement matches exactly. Plain transfers that drop the reference are still matched by inflow and labelled `probable`. `ledger rebuild` re-derives every invoice from the chain, so the ledger is verifiable, not trusted.
 
 ## Config
 
 | Env | Default | Meaning |
 |---|---|---|
-| `SOLANA_PAY_RECIPIENT` | required | Wallet that receives invoices |
-| `SOLANA_PAY_SIGNER` | unset | Agent keypair from `solana-pay-mcp keygen`. Set: Claude pays itself. Unset: QR for your own wallet. |
-| `SOLANA_PAY_DAILY_CAP` | `10` | Max USDC the agent wallet may send per 24h |
 | `SOLANA_CLUSTER` | `devnet` | `devnet` or `mainnet` |
 | `SOLANA_RPC_URL` | public RPC | Helius, Triton, etc. |
-| `SOLANA_PAY_MCP_HOME` | `~/.solana-pay-mcp` | Where requests are stored (JSON) |
-
-USDC mints: devnet `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`, mainnet `EPjFWdd5AufqSSqeM2qN1xqybapC8G4wEGGkZwyTDt1v`.
+| `SAW_HOME` | `~/.solana-pay-mcp` | policy, sessions, orders, invoices, key |
+| `SOLANA_PAY_SIGNER` | `$SAW_HOME/agent.json` | local key path |
+| `SOLANA_PAY_RECIPIENT` | wallet address | where invoices are paid |
+| `SAW_VAULT_URL` | unset | agent side: use a remote vault |
+| `SAW_OWNER_TOKEN` | generated | vault owner token |
+| `JUPITER_API_BASE`, `JUPITER_API_KEY` | lite-api.jup.ag | swaps, prices, token data |
+| `JITO_TIP_LAMPORTS` | unset | MEV protection for swaps via Jito tips |
 
 ## Develop
 
 ```bash
 npm i
-npm test            # unit tests on URL building and paid-detection
+npm test              # 47 tests, mocked RPC and Jupiter
 npm run typecheck
-SOLANA_PAY_RECIPIENT=<addr> node scripts/smoke.mjs   # drives the server over stdio against devnet
-npm run inspect     # MCP Inspector
+npm run gen:skill     # regenerate skills/ from the command registry
+SMOKE_HOME=$(mktemp -d) npm run smoke   # drive the MCP server over stdio
 ```
 
-## Roadmap
-
-- [ ] `monthly_report`: who paid, when, how much, categorized. CSV/PDF.
-- [ ] `flag_anomalies`: unknown payer, duplicate invoice, amount mismatch.
-- [ ] `create_recurring`: USDC subscriptions via [solana-foundation/subscriptions](https://github.com/solana-foundation/subscriptions).
-- [ ] Hosted version with embedded wallets.
-- [ ] 402 paywall on the report tools via [pay-kit](https://github.com/solana-foundation/pay-kit) and [pay.sh](https://pay.sh).
-
-## Why
-
-Stripe's agent toolkit gets ~90k installs a month because people want their agent to invoice and pay. Stripe takes 2.9% + 30¢ and needs a bank. USDC on Solana settles in ~200ms for a fraction of a cent and needs a wallet. Nobody had joined the two for MCP. Now it exists.
+Why this shape, and why it is built to win regardless of which wallet wins: [docs/strategy.md](docs/strategy.md).
 
 MIT.
