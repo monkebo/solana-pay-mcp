@@ -93,11 +93,20 @@ for (; round < ROUNDS; round++) {
   const amount = rnd(lo, hi);
   const line = `${spec(customer).icon} <b>${customer.name}</b> ${pick(VERBS)} ${item} from ${spec(seller).icon} <b>${seller.name}</b>`;
   try {
-    const r = await agent(customer.token, "wallet.send", { amount, recipient: seller.name, tokenAddress: "USDC", memo: `${item} #${round + 1}` });
+    let r;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        r = await agent(customer.token, "wallet.send", { amount, recipient: seller.name, tokenAddress: "USDC", memo: `${item} #${round + 1}` });
+        break;
+      } catch (e) {
+        if (attempt < 2 && /429|Too Many Requests|fetch failed|ECONNREFUSED/.test(e.message)) { await new Promise((w) => setTimeout(w, 4000 * (attempt + 1))); continue; }
+        throw e;
+      }
+    }
     await tg(`${line} · ${amount} USDC · <a href="${r.explorer}">tx</a>`);
   } catch (e) {
     const why = e.message.split(":")[0];
-    await tg(`${line} · ${amount} USDC · ❌ <i>${why === "SIMULATION_FAILED" ? "can't afford it" : why === "AGENT_PAUSED" ? "paused by the owner" : why === "FLEET_PAUSED" ? "town is paused" : why}</i>`);
+    await tg(`${line} · ${amount} USDC · ❌ <i>${why === "SIMULATION_FAILED" ? "can't afford it" : why === "AGENT_PAUSED" ? "paused by the owner" : why === "FLEET_PAUSED" ? "town is paused" : /429|Too Many/.test(e.message) ? "network busy, skipped" : why}</i>`);
   }
   if ((round + 1) % 10 === 0) await leaderboard();
   await new Promise((r) => setTimeout(r, PACE));

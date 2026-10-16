@@ -23,9 +23,13 @@ import { createMcpServer } from "./mcp.js";
 import { ownerConsoleHtml, payPageHtml, boardHtml } from "./pages.js";
 
 let boardCache: { at: number; data: unknown } | undefined;
-/** Fleet leaderboard + ledger for the public board. Balances hit the RPC, so cache for 8s. */
+/** Fleet leaderboard + ledger for the public board. Balances hit the RPC (2 calls per agent), so cache 30s; the ledger is local and refreshed every call. */
 async function boardData(): Promise<unknown> {
-  if (boardCache && Date.now() - boardCache.at < 8000) return boardCache.data;
+  const ctx0 = createCtx({ role: "owner" });
+  if (boardCache && Date.now() - boardCache.at < 30_000) {
+    const ledger = (await exec(ctx0, "owner.fleet-ledger", { limit: 40 })) as { rows: Record<string, unknown>[] };
+    return { ...(boardCache.data as Record<string, unknown>), ledger: ledger.rows };
+  }
   const ctx = createCtx({ role: "owner" });
   const fleet = (await exec(ctx, "owner.fleet-list", { balances: true })) as { agents: Record<string, unknown>[]; fleetPaused: boolean; spentTodayUsd: number };
   const ledger = (await exec(ctx, "owner.fleet-ledger", { limit: 40 })) as { rows: Record<string, unknown>[] };
