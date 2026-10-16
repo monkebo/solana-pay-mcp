@@ -6,7 +6,7 @@ import { readPolicy } from "./policy.js";
 import { assertTokenAllowed } from "./send.js";
 import { price, usdValue } from "./prices.js";
 import { auditToken, assessTransfer } from "./risk.js";
-import { loadSigner } from "./signer.js";
+import { walletAddress } from "./signer.js";
 import { WalletError } from "./errors.js";
 import { orders, type Order } from "./orders.js";
 import { CHAIN_ID } from "./config.js";
@@ -67,13 +67,13 @@ export async function prepareLimit(ctx: Ctx, a: LimitArgs): Promise<PreparedLimi
 }
 
 export async function createTriggerOrder(ctx: Ctx, p: PreparedLimit, a: LimitArgs): Promise<{ requestId: string; transaction: string; order: string }> {
-  const signer = await loadSigner();
+  const maker = await walletAddress();
   return jup(ctx, "/trigger/v1/createOrder", {
     body: {
       inputMint: p.from.mint,
       outputMint: p.to.mint,
-      maker: signer.address,
-      payer: signer.address,
+      maker,
+      payer: maker,
       params: {
         makingAmount: p.makingAmount.toString(),
         takingAmount: p.takingAmount.toString(),
@@ -92,13 +92,11 @@ export async function executeTrigger(ctx: Ctx, requestId: string, signedTransact
 }
 
 export async function cancelTriggerTx(ctx: Ctx, orderKey: string): Promise<{ requestId: string; transaction: string }> {
-  const signer = await loadSigner();
-  return jup(ctx, "/trigger/v1/cancelOrder", { body: { maker: signer.address, order: orderKey, computeUnitPrice: "auto" } });
+  return jup(ctx, "/trigger/v1/cancelOrder", { body: { maker: await walletAddress(), order: orderKey, computeUnitPrice: "auto" } });
 }
 
 export async function fetchTriggerOrders(ctx: Ctx, status: "active" | "history", page = 1): Promise<TriggerOrder[]> {
-  const signer = await loadSigner();
-  const r = await jup<{ orders?: TriggerOrder[] }>(ctx, "/trigger/v1/getTriggerOrders", { query: { user: signer.address, orderStatus: status, page } });
+  const r = await jup<{ orders?: TriggerOrder[] }>(ctx, "/trigger/v1/getTriggerOrders", { query: { user: await walletAddress(), orderStatus: status, page } });
   return r.orders ?? [];
 }
 

@@ -6,7 +6,7 @@ import { readPolicy } from "./policy.js";
 import { assertTokenAllowed } from "./send.js";
 import { usdValue } from "./prices.js";
 import { auditToken, assessTransfer } from "./risk.js";
-import { loadSigner } from "./signer.js";
+import { walletAddress } from "./signer.js";
 import { WalletError } from "./errors.js";
 import { orders, type Order } from "./orders.js";
 import { CHAIN_ID } from "./config.js";
@@ -78,12 +78,12 @@ export async function prepareSwap(ctx: Ctx, a: SwapArgs): Promise<PreparedSwap> 
 }
 
 export async function buildSwapTx(ctx: Ctx, p: PreparedSwap, a: SwapArgs): Promise<SwapResponse> {
-  const signer = await loadSigner();
+  const userPublicKey = await walletAddress();
   const level = (a.gasLevel ?? "MEDIUM").toLowerCase();
   const jito = a.mev !== false && process.env.JITO_TIP_LAMPORTS ? Number(process.env.JITO_TIP_LAMPORTS) : undefined;
   const body = {
     quoteResponse: p.quote,
-    userPublicKey: signer.address,
+    userPublicKey,
     wrapAndUnwrapSol: true,
     dynamicComputeUnitLimit: true,
     dynamicSlippage: p.slippageBps === undefined,

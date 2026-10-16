@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { amount, define, optBool, optNum, optStr, str } from "../core/registry.js";
-import { gated } from "../core/gate.js";
+import { gated, type Executed } from "../core/gate.js";
 import { buildSwapTx, getQuote, marketOrders, prepareSwap, quoteView } from "../core/swap.js";
 import { sendWire, signWire, simulateWire } from "../core/tx.js";
 import { explorerUrl } from "../core/config.js";
@@ -10,6 +10,7 @@ import { orders, setOrder } from "../core/orders.js";
 import { fromUnits } from "../core/tokens.js";
 import { WalletError } from "../core/errors.js";
 import { gasLevelSchema } from "./wallet-send.js";
+import { activeBackend } from "../core/backend.js";
 
 const slippage = optStr('"auto" (default) or percent 0–100, e.g. 2.5');
 
@@ -56,7 +57,12 @@ define({
       command: "market-order.swap",
       params: { ...p, orderId: undefined },
       reasons: s.reasons,
-      async execute() {
+      async execute(): Promise<Executed & { result: Record<string, unknown> }> {
+        const be = activeBackend();
+        if (be.swap) {
+          const o = await be.swap(ctx, s, p);
+          return { txHash: o.txHash, status: o.status, details: { backend: be.kind, upstreamOrderId: o.upstreamOrderId }, result: { orderId: "", upstreamOrderId: o.upstreamOrderId, txHash: o.txHash, status: o.status, backend: be.kind, ...s.view, note: "Submitted through the backend. Poll `market-order list --orderId <orderId>` until FINISHED or FAILED." } };
+        }
         const built = await buildSwapTx(ctx, s, p);
         const b = await sendWire(ctx, built.swapTransaction, { lastValidBlockHeight: built.lastValidBlockHeight });
         return {
@@ -143,6 +149,7 @@ const limitParams = {
 
 define({
   name: "limit-order.buy",
+  forwardable: true,
   cli: "limit-order buy",
   title: "Limit buy",
   description: "Buy a token with USDC, USDT or SOL when its USD price drops to triggerPrice. Places a Jupiter trigger order (min $5). A strategyId is a placement, not a fill.",
@@ -156,6 +163,7 @@ define({
 
 define({
   name: "limit-order.sell",
+  forwardable: true,
   cli: "limit-order sell",
   title: "Limit sell",
   description: "Sell a token for USDC, USDT or SOL when its USD price reaches triggerPrice. Places a Jupiter trigger order (min $5). A strategyId is a placement, not a fill.",
@@ -169,6 +177,7 @@ define({
 
 define({
   name: "limit-order.list",
+  forwardable: true,
   cli: "limit-order list",
   title: "Limit orders",
   description: "Resting and historical trigger orders: WORKING, TRIGGERED, PENDING, FINISHED, FAILED, EXPIRED, CANCELED. Live status comes from Jupiter; falls back to local records offline.",
@@ -214,6 +223,7 @@ define({
 
 define({
   name: "limit-order.cancel",
+  forwardable: true,
   cli: "limit-order cancel",
   title: "Cancel a limit order",
   description: "Cancel a resting trigger order and get the escrowed tokens back.",

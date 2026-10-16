@@ -1,10 +1,10 @@
 // `wallet send`: any SPL token (Token or Token-2022) or native SOL, to an address-book recipient, within policy.
-import { address, type Address, type Instruction } from "@solana/kit";
+import { address, createNoopSigner, type Address, type Instruction } from "@solana/kit";
 import { getTransferSolInstruction } from "@solana-program/system";
 import { findAssociatedTokenPda, getCreateAssociatedTokenIdempotentInstruction, getTransferCheckedInstruction } from "@solana-program/token";
 import { getAddMemoInstruction } from "@solana-program/memo";
 import type { Ctx } from "./ctx.js";
-import { loadSigner } from "./signer.js";
+import { activeBackend } from "./backend.js";
 import { fromUnits, knownBySymbol, resolveToken, toUnits, type TokenRef } from "./tokens.js";
 import { resolveRecipient } from "./addressbook.js";
 import { readPolicy, tokenAllowed } from "./policy.js";
@@ -58,7 +58,8 @@ export async function prepareSend(ctx: Ctx, p: SendParams): Promise<PreparedSend
   assertTokenAllowed(policy, p.tokenAddress);
   const token = await resolveToken(ctx, p.tokenAddress);
   const { address: to, label } = resolveRecipient(p.recipient);
-  const signer = await loadSigner();
+  const be = activeBackend();
+  const signer = be.canSign ? await be.signer() : createNoopSigner(await be.address());
   const price = await cuPrice(ctx, p.gasLevel ?? "MEDIUM");
   const feeEstimateLamports = 5000 + Math.ceil((price * DEFAULT_CU) / 1e6);
 

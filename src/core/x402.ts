@@ -12,7 +12,7 @@ import { cluster, X402_NETWORK, CHAIN_ID } from "./config.js";
 import { readPolicy, tokenAllowed } from "./policy.js";
 import { fromUnits, known, resolveToken, type TokenRef } from "./tokens.js";
 import { prices } from "./prices.js";
-import { loadSigner } from "./signer.js";
+import { loadSigner, walletAddress } from "./signer.js";
 import { tokenBalanceUnits } from "./send.js";
 import { quotaLimit, quotaUsed } from "./orders.js";
 
@@ -101,7 +101,7 @@ export function networkMatches(net: string): boolean {
 export async function previewX402(ctx: Ctx, input: string | Record<string, unknown>): Promise<{ paymentId: string; options: Option[]; resource: PaymentRequired["resource"] | null; x402Version: number }> {
   const pr = parsePaymentRequired(input);
   const policy = readPolicy();
-  const wallet = (await loadSigner()).address;
+  const wallet = await walletAddress();
   const limit = quotaLimit(policy, "x402");
   const used = quotaUsed("x402");
   const options: Option[] = [];

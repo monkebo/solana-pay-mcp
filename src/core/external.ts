@@ -19,7 +19,7 @@ import { Collection } from "./store.js";
 import { WalletError } from "./errors.js";
 import { readPolicy } from "./policy.js";
 import { decodeMessage, decodeWire, simulateWire } from "./tx.js";
-import { loadSigner } from "./signer.js";
+import { loadSigner, walletAddress } from "./signer.js";
 import { tokenAccounts } from "./view.js";
 import { prices } from "./prices.js";
 import { fromUnits, known, SOL_MINT, TOKEN_2022_PROGRAM_ADDRESS } from "./tokens.js";
@@ -206,11 +206,11 @@ export async function simulateWithBalances(ctx: Ctx, base64: string, wallet: Add
 
 export async function previewContractCall(ctx: Ctx, unsignedTx: string, from?: string) {
   assertDevMode();
-  const wallet = await loadSigner();
-  if (from && from !== wallet.address) throw new WalletError("INVALID_PARAM", `--from ${from} is not this wallet (${wallet.address}).`);
-  const parsed = parseUnsignedTx(unsignedTx, wallet.address);
-  if (!parsed.walletIsSigner) throw new WalletError("INVALID_PARAM", `This transaction does not require ${wallet.address} to sign. Signers: ${parsed.signers.join(", ")}.`);
-  const { sim, changes, outflowUsd, unpricedOutflow } = await simulateWithBalances(ctx, unsignedTx, wallet.address);
+  const me = await walletAddress();
+  if (from && from !== me) throw new WalletError("INVALID_PARAM", `--from ${from} is not this wallet (${me}).`);
+  const parsed = parseUnsignedTx(unsignedTx, me);
+  if (!parsed.walletIsSigner) throw new WalletError("INVALID_PARAM", `This transaction does not require ${me} to sign. Signers: ${parsed.signers.join(", ")}.`);
+  const { sim, changes, outflowUsd, unpricedOutflow } = await simulateWithBalances(ctx, unsignedTx, me);
   const policy = readPolicy();
   const risks: RiskItem[] = [];
   for (const p of parsed.unknownPrograms) risks.push({ code: "UNKNOWN_PROGRAM", title: "Unknown program", description: `Calls ${p}, a program this wallet does not recognise. Verify it with the dApp before signing.`, riskType: "CAUTION" });
@@ -284,7 +284,7 @@ function looksLikeTransaction(bytes: Uint8Array): boolean {
 
 export async function previewSignMessage(ctx: Ctx, message: string, signType: SignType, applicationDomain?: string) {
   assertDevMode();
-  const wallet = await loadSigner();
+  const me = await walletAddress();
   const risks: RiskItem[] = [];
   const bytes = new TextEncoder().encode(message);
   let parsedMessage: Record<string, unknown>;
@@ -319,7 +319,7 @@ export async function previewSignMessage(ctx: Ctx, message: string, signType: Si
     requestId: id,
     parsedMessage,
     risks: { riskDetails: risks.map((r, i) => ({ ...r, order: i + 1 })), addresses: {}, riskBehaviors: [] },
-    signer: wallet.address,
+    signer: me,
     requireConfirmation: reasons.length > 0,
     expiresAt: Date.now() + PREVIEW_TTL,
   };
@@ -329,11 +329,13 @@ export async function previewSignMessage(ctx: Ctx, message: string, signType: Si
 
 export async function signMessageNow(payload: { message: string; signType: SignType; applicationDomain: string | null }, orderId: string) {
   const wallet = await loadSigner();
+  const keyPair = wallet.keyPair;
+  if (!keyPair) throw new WalletError("NOT_SUPPORTED", "Message signing needs the local key backend; the active backend exposes no keypair.");
   const b58 = getBase58Decoder();
   let sigBytes: Uint8Array;
   let envelopeBase64: string | null = null;
   if (payload.signType === "RAW") {
-    sigBytes = new Uint8Array(await signBytes(wallet.keyPair.privateKey, new TextEncoder().encode(payload.message)));
+    sigBytes = new Uint8Array(await signBytes(keyPair.privateKey, new TextEncoder().encode(payload.message)));
   } else {
     const { content } = offchainContent(payload.message);
     const msg = {
@@ -343,7 +345,7 @@ export async function signMessageNow(payload: { message: string; signType: SignT
       content,
     } as unknown as OffchainMessageV0;
     const env = compileOffchainMessageEnvelope(msg);
-    const signed = await signOffchainMessageEnvelope([wallet.keyPair], env);
+    const signed = await signOffchainMessageEnvelope([keyPair], env);
     sigBytes = new Uint8Array(signed.signatures[wallet.address as Address] as Uint8Array);
     envelopeBase64 = Buffer.from(getOffchainMessageEnvelopeEncoder().encode(signed)).toString("base64");
   }

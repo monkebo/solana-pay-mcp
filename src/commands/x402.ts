@@ -4,6 +4,7 @@ import { gated, isPending } from "../core/gate.js";
 import { decodeSettlement, loadX402, previewX402, signX402, x402Previews } from "../core/x402.js";
 import { WalletError } from "../core/errors.js";
 import { orders } from "../core/orders.js";
+import { activeBackend } from "../core/backend.js";
 
 define({
   name: "x402-payment.preview",
@@ -37,9 +38,10 @@ async function signOption(ctx: Parameters<typeof signX402>[0], paymentId: string
     reasons: [],
     needsLock: false,
     async execute() {
-      const s = await signX402(ctx, p, opt);
+      const be = activeBackend();
+      const s = be.x402Sign ? await be.x402Sign(ctx, p, opt) : await signX402(ctx, p, opt);
       x402Previews.remove(p.id);
-      return { status: "COMPLETED", details: { signatureExpiresAt: s.signatureExpiresAt }, result: { ...s, approveTxHash: null, binanceChainId: null, orderId: "" } };
+      return { status: "COMPLETED", details: { signatureExpiresAt: s.signatureExpiresAt, backend: be.kind }, result: { ...s, approveTxHash: null, binanceChainId: null, orderId: "", backend: be.kind } };
     },
   });
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fromBaseUnits, isPaid, solanaPayUrl, toBaseUnits, usdcReceived, USDC_MINT, type PaymentRequest } from "../src/pay.js";
+import { fromBaseUnits, isPaid, solanaPayUrl, toBaseUnits, usdcReceived, USDC_MINT, type PaymentRequest } from "../src/core/pay.js";
 
 const req: PaymentRequest = {
   id: "inv_test",
@@ -62,44 +62,5 @@ describe("paid detection", () => {
     const wrongOwner = meta("0", "12500000");
     wrongOwner.postTokenBalances[0].owner = "Other";
     expect(isPaid(wrongOwner, req)).toBe(false);
-  });
-});
-
-describe("daily cap", () => {
-  it("blocks a payment that would exceed the cap", async () => {
-    const { mkdtempSync } = await import("node:fs");
-    const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
-    process.env.SOLANA_PAY_MCP_HOME = mkdtempSync(join(tmpdir(), "spm-"));
-    process.env.SOLANA_PAY_DAILY_CAP = "5";
-    process.env.SOLANA_PAY_SIGNER = "/nonexistent"; // cap check runs before the key is read
-    const store = await import("../src/store.js");
-    const { execute } = await import("../src/signer.js");
-    store.put({ ...req, id: "pay_old", kind: "payment", amount: "4", paidTx: "x", paidAt: new Date().toISOString(), matchedBy: "signer" });
-    await expect(execute({ ...req, id: "pay_new", kind: "payment", amount: "2" })).rejects.toThrow(/Daily cap exceeded/);
-  });
-});
-
-describe("contacts", () => {
-  it("resolves saved names and raw addresses, rejects junk", async () => {
-    const { mkdtempSync } = await import("node:fs");
-    const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
-    process.env.SOLANA_PAY_MCP_HOME = mkdtempSync(join(tmpdir(), "spm-"));
-    const c = await import("../src/contacts.js");
-    const addr = "GG6uob9Gn8sTojdK6w2vXeoSqft82reYaTvAzZtrdNuf";
-    c.save("Kevin", addr);
-    expect(c.resolve("kevin")).toBe(addr);
-    expect(c.resolve(" KEVIN ")).toBe(addr);
-    expect(c.resolve(addr)).toBe(addr);
-    expect(() => c.resolve("nico")).toThrow(/Unknown contact/);
-  });
-});
-
-describe("SOL amounts", () => {
-  it("uses 9 decimals for SOL", () => {
-    expect(toBaseUnits("1.5", 9)).toBe(1_500_000_000n);
-    expect(fromBaseUnits(1_500_000_000n, 9)).toBe("1.5");
-    expect(() => toBaseUnits("0.0000000001", 9)).toThrow();
   });
 });

@@ -1,37 +1,15 @@
-// The agent keypair. Local mode: on this machine. Vault mode: only on the vault host; agents never see it.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-import { createKeyPairSignerFromBytes, createKeyPairSignerFromPrivateKeyBytes, getAddressEncoder, type Address, type KeyPairSigner } from "@solana/kit";
-import { keyPath } from "./config.js";
-import { WalletError } from "./errors.js";
+// Facade over the active backend, so every module asks "who is the wallet" and "sign this" the same way
+// whether the key is local, in Binance's wallet, behind an HTTP custodian, or in a human's phone.
+import type { Address } from "@solana/kit";
+import { activeBackend, type WalletSigner } from "./backend.js";
 
-export function hasKey(): boolean {
-  return existsSync(keyPath());
-}
-
-/** Write a new keypair (0600) in `solana-keygen` layout and return its address. Never prints the secret. */
-export async function keygen(path = keyPath()): Promise<Address> {
-  if (existsSync(path)) throw new WalletError("BAD_REQUEST", `${path} already exists; refusing to overwrite a key`);
-  const seed = crypto.getRandomValues(new Uint8Array(32));
-  const kp = await createKeyPairSignerFromPrivateKeyBytes(seed);
-  const pub = new Uint8Array(getAddressEncoder().encode(kp.address));
-  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-  writeFileSync(path, JSON.stringify(Array.from([...seed, ...pub])), { mode: 0o600 });
-  return kp.address;
-}
-
-let cached: { path: string; signer: KeyPairSigner } | undefined;
-
-export async function loadSigner(): Promise<KeyPairSigner> {
-  const p = keyPath();
-  if (cached?.path === p) return cached.signer;
-  if (!existsSync(p)) throw new WalletError("NO_WALLET", `No wallet key at ${p}. The owner creates one with \`saw owner keygen\`.`);
-  const bytes = Uint8Array.from(JSON.parse(readFileSync(p, "utf8")) as number[]);
-  const signer = await createKeyPairSignerFromBytes(bytes);
-  cached = { path: p, signer };
-  return signer;
-}
+export { hasKey, keygen } from "./keys.js";
 
 export async function walletAddress(): Promise<Address> {
-  return (await loadSigner()).address;
+  return activeBackend().address();
+}
+
+/** A kit signer for the active backend. Throws NOT_SUPPORTED for backends that only execute whole operations. */
+export async function loadSigner(): Promise<WalletSigner> {
+  return activeBackend().signer();
 }

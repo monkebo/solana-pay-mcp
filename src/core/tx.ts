@@ -17,6 +17,7 @@ import {
 import { getSetComputeUnitLimitInstruction, getSetComputeUnitPriceInstruction } from "@solana-program/compute-budget";
 import type { Ctx } from "./ctx.js";
 import { loadSigner } from "./signer.js";
+import { activeBackend, notSigning } from "./backend.js";
 import { WalletError } from "./errors.js";
 import { DEFAULT_CU, gasLevels, type GasLevel } from "./view.js";
 
@@ -58,6 +59,8 @@ export async function simulateWire(ctx: Ctx, wire: string, withAccounts: string[
 
 /** Build and sign a v0 transaction around `instructions`, sizing compute from a simulation. */
 export async function buildSigned(ctx: Ctx, instructions: Instruction[], opts: { gasLevel?: GasLevel; computeUnits?: number } = {}) {
+  const be = activeBackend();
+  if (!be.canSign) throw notSigning(be.kind, "This operation");
   const signer = await loadSigner();
   const price = await cuPrice(ctx, opts.gasLevel ?? "MEDIUM");
   const { value: bh } = await ctx.rpc.getLatestBlockhash({ commitment: "confirmed" }).send();
@@ -130,6 +133,8 @@ export function decodeMessage(tx: ReturnType<typeof decodeWire>) {
 
 /** Sign an externally built transaction with the wallet key (partial: other signers may already be present). */
 export async function signWire(base64: string): Promise<{ wire: string; signature: string; signed: Awaited<ReturnType<typeof partiallySignTransactionWithSigners>> }> {
+  const be = activeBackend();
+  if (!be.canSign) throw notSigning(be.kind, "Signing an externally built transaction");
   const signer = await loadSigner();
   const tx = decodeWire(base64);
   const signed = await partiallySignTransactionWithSigners([signer], tx);

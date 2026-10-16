@@ -3,6 +3,7 @@
 import { Doc } from "./store.js";
 import { parseDuration } from "./config.js";
 import { WalletError } from "./errors.js";
+import type { BackendConfig } from "./backend.js";
 
 export type AbnormalHandling = "AutoReject" | "NeedConfirmation";
 
@@ -33,6 +34,8 @@ export interface Policy {
   predictionEnabled: boolean;
   predictionDailyLimitUsd: number;
   devMode: { enabled: boolean; expiresAt: number | null; dailyLimitUsd: number };
+  /** Which wallet executes: local key, Binance baw, HTTP signer, or a human's wallet via Solana Pay. */
+  backend: BackendConfig;
 }
 
 export const SOL_MINT = "So11111111111111111111111111111111111111112";
@@ -58,6 +61,7 @@ export function defaultPolicy(): Policy {
     predictionEnabled: false,
     predictionDailyLimitUsd: 0,
     devMode: { enabled: false, expiresAt: null, dailyLimitUsd: 0 },
+    backend: { kind: "local" },
   };
 }
 
@@ -77,6 +81,7 @@ export function writePolicy(p: Policy): Policy {
   for (const k of ["dailyLimitUsd", "x402DailyLimitUsd", "defiDailyLimitUsd", "predictionDailyLimitUsd"] as const) {
     if (!(Number.isFinite(p[k]) && p[k] >= 0)) throw new WalletError("INVALID_PARAM", `${k} must be a non-negative number`);
   }
+  if (!["local", "baw", "signer", "solana-pay"].includes(p.backend?.kind)) throw new WalletError("INVALID_PARAM", "backend.kind must be local | baw | signer | solana-pay");
   return doc.write({ ...p, version: 1 });
 }
 

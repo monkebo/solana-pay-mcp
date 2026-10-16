@@ -5,6 +5,7 @@ import { WalletError } from "./errors.js";
 import { readPolicy } from "./policy.js";
 import { assertQuota, assertUnlocked, newOrder, orders, queueForConfirmation, setOrder, type Category, type OrderKind, type OrderStatus } from "./orders.js";
 import { refreshPending } from "./track.js";
+import { activeBackend } from "./backend.js";
 
 export interface Pending {
   orderId: string;
@@ -53,7 +54,7 @@ export async function gated<T>(ctx: Ctx, g: GateInput<T>): Promise<T | Pending> 
         throw new WalletError("RISK_BLOCKED", `Blocked by policy (abnormalTxnHandling=AutoReject): ${g.reasons.join("; ")}.`, { reasons: g.reasons });
       }
       if (g.needsLock !== false) assertUnlocked();
-      const o = queueForConfirmation({ kind: g.kind, category: g.category, usdValue: g.usd, summary: g.summary, details: g.details }, { command: g.command, params: g.params }, g.reasons);
+      const o = queueForConfirmation({ kind: g.kind, category: g.category, usdValue: g.usd, summary: g.summary, details: g.details, backend: activeBackend().kind }, { command: g.command, params: g.params }, g.reasons);
       return {
         orderId: o.id,
         status: "PENDING_CONFIRMATION",
@@ -66,7 +67,7 @@ export async function gated<T>(ctx: Ctx, g: GateInput<T>): Promise<T | Pending> 
   if (g.needsLock !== false) assertUnlocked(g.orderId);
   const order = replay && g.orderId && orders.get(g.orderId)
     ? setOrder(g.orderId, { status: "BROADCASTED", action: undefined, summary: g.summary, details: { ...orders.get(g.orderId)!.details, ...g.details } })
-    : newOrder({ kind: g.kind, category: g.category, status: "BROADCASTED", usdValue: g.usd, summary: g.summary, details: g.details, reasons: g.reasons });
+    : newOrder({ kind: g.kind, category: g.category, status: "BROADCASTED", usdValue: g.usd, summary: g.summary, details: g.details, reasons: g.reasons, backend: activeBackend().kind });
   try {
     const r = await g.execute();
     setOrder(order.id, {

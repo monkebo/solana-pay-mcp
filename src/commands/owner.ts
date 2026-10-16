@@ -9,6 +9,7 @@ import { keyPath } from "../core/config.js";
 import { orders, pendingConfirmations, setOrder } from "../core/orders.js";
 import { WalletError } from "../core/errors.js";
 import { exec } from "../core/registry.js";
+import { activeBackend, backendKinds, resetBackendCache, type BackendKind } from "../core/backend.js";
 
 define({
   name: "owner.keygen",
@@ -248,5 +249,48 @@ define({
       pendingConfirmations: pendingConfirmations().length,
       pendingPairings: pairings.all().filter((p) => p.status === "PENDING" && p.expireAt > Date.now()).length,
     };
+  },
+});
+
+define({
+  name: "owner.backends",
+  cli: "owner backends",
+  title: "Wallet backends",
+  description: "Which wallets this control plane can execute through, and which one is active.",
+  access: "owner",
+  write: false,
+  params: {},
+  async run(ctx) {
+    const p = readPolicy();
+    const be = activeBackend();
+    const st = await be.status(ctx).catch((e: Error) => ({ connected: false, detail: e.message }));
+    return { active: { kind: be.kind, label: be.label, canSign: be.canSign, ...st, config: p.backend }, available: backendKinds() };
+  },
+});
+
+define({
+  name: "owner.set-backend",
+  cli: "owner set-backend",
+  title: "Switch wallet backend",
+  description: "Route every agent command to a different wallet: local (self-custody key), baw (Binance Agentic Wallet CLI), signer (HTTP remote signer: --url, --token, --address), solana-pay (a human's wallet: --address). Agents keep working unchanged.",
+  access: "owner",
+  write: true,
+  params: { kind: z.enum(["local", "baw", "signer", "solana-pay"]), url: optStr("signer: base URL"), token: optStr("signer: bearer token"), address: optStr("signer/solana-pay: wallet address"), bin: optStr("baw: path to the baw binary"), label: optStr("solana-pay: label") },
+  async run(ctx, { kind, url, token, address: addr, bin, label }) {
+    const cfg: Record<string, unknown> = { kind: kind as BackendKind };
+    if (kind === "signer") {
+      if (!url) throw new WalletError("MISSING_PARAM", "--url is required for the signer backend.");
+      cfg.signer = { url, token, address: addr };
+    }
+    if (kind === "solana-pay") {
+      if (!addr) throw new WalletError("MISSING_PARAM", "--address is required for the solana-pay backend.");
+      cfg.solanaPay = { address: addr, label };
+    }
+    if (kind === "baw") cfg.baw = { bin: bin ?? "baw" };
+    patchPolicy({ backend: JSON.stringify(cfg) });
+    resetBackendCache();
+    const be = activeBackend();
+    const st = await be.status(ctx).catch((e: Error) => ({ connected: false, detail: e.message }));
+    return { active: be.kind, label: be.label, ...st };
   },
 });

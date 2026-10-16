@@ -3,6 +3,7 @@ import { define, optNum, optStr } from "../core/registry.js";
 import { walletAddress } from "../core/signer.js";
 import { balances, gasLevels, txHistory } from "../core/view.js";
 import { resolveToken } from "../core/tokens.js";
+import { activeBackend } from "../core/backend.js";
 
 define({
   name: "wallet.balance",
@@ -13,8 +14,8 @@ define({
   write: false,
   params: { symbol: optStr("Filter by symbol, e.g. USDC"), tokenAddress: optStr("Filter by mint address"), binanceChainId: optStr("Ignored; Solana only"), includeDust: z.preprocess((v) => v === "true" || v === true, z.boolean()).optional() },
   async run(ctx, { symbol, tokenAddress, includeDust }) {
-    const owner = await walletAddress();
-    let rows = await balances(ctx, owner, { includeDust });
+    const be = activeBackend();
+    let rows = be.balances ? await be.balances(ctx) : await balances(ctx, await walletAddress(), { includeDust });
     if (symbol) rows = rows.filter((r) => r.symbol.toUpperCase() === symbol.toUpperCase());
     if (tokenAddress) rows = rows.filter((r) => r.address === tokenAddress);
     return rows;
@@ -44,6 +45,7 @@ define({
 
 define({
   name: "wallet.gas-price",
+  forwardable: true,
   cli: "wallet gas-price",
   title: "Priority fee levels",
   description: "LOW / MEDIUM / HIGH priority-fee tiers from recent blocks (micro-lamports per compute unit) and the tip in SOL they imply for a typical 200k-CU transaction. A snapshot, not a quote.",
