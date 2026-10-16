@@ -5,3 +5,5 @@ import "./wallet-core.js";
 import "./wallet-view.js";
 import "./wallet-send.js";
 import "./approvals.js";
+import "./trade.js";
+import "./token.js";
