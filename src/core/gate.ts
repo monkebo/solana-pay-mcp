@@ -4,6 +4,7 @@ import type { Ctx } from "./ctx.js";
 import { WalletError } from "./errors.js";
 import { readPolicy } from "./policy.js";
 import { assertQuota, assertUnlocked, newOrder, orders, queueForConfirmation, setOrder, type Category, type OrderKind, type OrderStatus } from "./orders.js";
+import { refreshPending } from "./track.js";
 
 export interface Pending {
   orderId: string;
@@ -43,6 +44,7 @@ export function isPending(x: unknown): x is Pending {
 
 export async function gated<T>(ctx: Ctx, g: GateInput<T>): Promise<T | Pending> {
   const replay = Boolean(g.orderId && ctx.approved);
+  if (g.needsLock !== false) await refreshPending(ctx); // settle anything that already landed before judging the lock
   if (!replay) {
     assertQuota(g.category, g.usd);
     if (g.reasons.length) {

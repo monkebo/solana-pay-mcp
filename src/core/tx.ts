@@ -108,3 +108,49 @@ export function explainSimError(err: unknown, logs: string[]): string {
   if (/AccountNotFound/.test(s)) return "fee payer account not found: the wallet has no SOL";
   return last ? `${s} (${last})` : s;
 }
+
+// ---- Externally built transactions (Jupiter, x402 facilitators, user-supplied) ----
+import { getBase64Encoder, getTransactionDecoder, partiallySignTransactionWithSigners, getCompiledTransactionMessageDecoder } from "@solana/kit";
+
+/** Decode a base64 wire transaction into kit's Transaction shape. */
+export function decodeWire(base64: string) {
+  let bytes: Uint8Array;
+  try {
+    bytes = new Uint8Array(getBase64Encoder().encode(base64));
+    return getTransactionDecoder().decode(bytes);
+  } catch (e) {
+    throw new WalletError("INVALID_PARAM", `Not a valid base64 Solana transaction: ${(e as Error).message}`);
+  }
+}
+
+/** Compiled message view: static account keys, instructions, lifetime token. */
+export function decodeMessage(tx: ReturnType<typeof decodeWire>) {
+  return getCompiledTransactionMessageDecoder().decode(tx.messageBytes);
+}
+
+/** Sign an externally built transaction with the wallet key (partial: other signers may already be present). */
+export async function signWire(base64: string): Promise<{ wire: string; signature: string; signed: Awaited<ReturnType<typeof partiallySignTransactionWithSigners>> }> {
+  const signer = await loadSigner();
+  const tx = decodeWire(base64);
+  const signed = await partiallySignTransactionWithSigners([signer], tx);
+  return { wire: getBase64EncodedWireTransaction(signed), signature: getSignatureFromTransaction(signed), signed };
+}
+
+/** Simulate, then sign and broadcast an externally built transaction. */
+export async function sendWire(ctx: Ctx, base64: string, opts: { simulate?: boolean; lastValidBlockHeight?: number } = {}): Promise<Broadcast> {
+  if (opts.simulate !== false) {
+    const sim = await simulateWire(ctx, base64);
+    if (sim.err) throw new WalletError("SIMULATION_FAILED", `Transaction simulation failed: ${explainSimError(sim.err, sim.logs)}`, { err: sim.err, logs: sim.logs.slice(-15) });
+  }
+  const { wire, signature } = await signWire(base64);
+  await broadcastWire(ctx, wire);
+  let lvbh = opts.lastValidBlockHeight;
+  if (lvbh === undefined) {
+    try {
+      lvbh = Number((await ctx.rpc.getBlockHeight().send()) + 150n);
+    } catch {
+      lvbh = 0;
+    }
+  }
+  return { signature, signedTx: wire, lastValidBlockHeight: lvbh, computeUnits: 0, priorityFeeMicroLamports: 0, simulationLogs: [] };
+}
