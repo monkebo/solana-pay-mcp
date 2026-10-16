@@ -89,3 +89,40 @@ if(d.paid){el.innerHTML='<span class="pill">'+d.status+'</span> '+(d.payerLabel?
 poll();setInterval(poll,3000);
 </script></main></body></html>`;
 }
+
+
+/** Public live board: leaderboard by USDC and the latest payments. Read-only, works as a Telegram Mini App. */
+export function boardHtml(publicUrl: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Agent economy</title><style>${CSS}
+main{max-width:560px}
+.lead{display:flex;flex-direction:column;gap:8px}
+.agent{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.agent .rank{font:700 18px ui-monospace,Menlo,monospace;color:var(--muted)}
+.agent .name{font-weight:600}.agent .role{color:var(--muted);font-size:13px}
+.agent .bal{font:600 20px ui-monospace,Menlo,monospace;text-align:right}.agent .bal small{display:block;font:12px system-ui;color:var(--muted)}
+.bar{height:4px;background:var(--line);border-radius:2px;margin-top:6px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent)}
+.agent.paused{opacity:.55}.agent.killed{opacity:.35;text-decoration:line-through}
+.feed{display:flex;flex-direction:column;gap:6px}.ev{display:flex;gap:10px;align-items:baseline;font-size:14px}.ev time{color:var(--muted);font:12px ui-monospace,Menlo,monospace;flex:0 0 56px}
+.ev .amt{font:600 13px ui-monospace,Menlo,monospace;margin-left:auto;white-space:nowrap}
+.top{display:flex;justify-content:space-between;align-items:baseline}
+</style></head><body><main>
+<div class="top"><h1>Agent economy</h1><span id="sum" class="muted">…</span></div>
+<section><h2>Richest agents</h2><div id="lead" class="lead muted">loading…</div></section>
+<section><h2>Live payments</h2><div id="feed" class="feed muted">…</div></section>
+<p class="muted" style="font-size:12px">Solana devnet. Every row is a real transaction. Agents run under one owner policy via <a href="https://github.com/monkebo/solana-pay-mcp">solana-pay-mcp</a>.</p>
+<script>
+const BASE=${JSON.stringify(publicUrl)};
+const e=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+const ICON={barista:'☕',baker:'🥐',courier:'🚲',designer:'🎨',farmer:'🌽',buyer:'🛍️',translator:'🌐',researcher:'🔎',landlord:'🏠',mechanic:'🔧'};
+async function load(){try{const r=await fetch(BASE+'/board/data');const d=(await r.json()).data;
+const ag=[...d.agents].sort((a,b)=>Number(b.usdc??0)-Number(a.usdc??0));const max=Math.max(0.01,...ag.map(a=>Number(a.usdc??0)));
+document.getElementById('sum').textContent=(d.fleetPaused?'PAUSED · ':'')+ag.filter(a=>a.status==='active').length+' agents · $'+Number(d.spentTodayUsd).toFixed(2)+' moved today';
+document.getElementById('lead').className='lead';
+document.getElementById('lead').innerHTML=ag.map((a,i)=>'<div class="agent '+e(a.status)+'"><span class="rank">'+(i+1)+'</span><div><div class="name">'+(ICON[a.role]||'🤖')+' '+e(a.name)+'</div><div class="role">'+e(a.role)+' · <a href="https://explorer.solana.com/address/'+e(a.address)+'?cluster=devnet" target="_blank" class="mono">'+e(a.address.slice(0,4)+'…'+a.address.slice(-4))+'</a></div><div class="bar"><i style="width:'+(100*Number(a.usdc??0)/max).toFixed(0)+'%"></i></div></div><div class="bal">'+(a.usdc??'…')+'<small>USDC · spent $'+e(a.spentTodayUsd)+'</small></div></div>').join('');
+document.getElementById('feed').className='feed';
+document.getElementById('feed').innerHTML=d.ledger.slice(0,30).map(r=>'<div class="ev"><time>'+e(r.at.slice(11,19))+'</time><span><b>'+e(r.agent)+'</b> → <b>'+e(r.to||'')+'</b>'+(r.memo?' <span class="muted">'+e(r.memo)+'</span>':'')+(/FAILED|REJECTED/.test(r.status)?' <span class="bad">✗ '+e((r.error||r.status).split(':')[0].slice(0,40))+'</span>':r.status==='CONFIRMED'?' ✓':'')+'</span><span class="amt">'+(r.amount?e(r.amount)+' '+e(r.token||''):'$'+e(r.usd??0))+'</span></div>').join('')||'<span class="muted">no payments yet</span>';
+}catch(err){document.getElementById('sum').textContent=err.message}}
+load();setInterval(load,4000);
+if(window.Telegram&&Telegram.WebApp){Telegram.WebApp.ready();Telegram.WebApp.expand()}
+</script><script src="https://telegram.org/js/telegram-web-app.js"></script></main></body></html>`;
+}

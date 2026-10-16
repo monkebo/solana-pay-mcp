@@ -20,7 +20,25 @@ import { hash } from "./core/session.js";
 import { invoices, invoiceView, refreshInvoice } from "./core/invoice.js";
 import { solanaPayUrl, toBaseUnits, USDC_MINT } from "./core/pay.js";
 import { createMcpServer } from "./mcp.js";
-import { ownerConsoleHtml, payPageHtml } from "./pages.js";
+import { ownerConsoleHtml, payPageHtml, boardHtml } from "./pages.js";
+
+let boardCache: { at: number; data: unknown } | undefined;
+/** Fleet leaderboard + ledger for the public board. Balances hit the RPC, so cache for 8s. */
+async function boardData(): Promise<unknown> {
+  if (boardCache && Date.now() - boardCache.at < 8000) return boardCache.data;
+  const ctx = createCtx({ role: "owner" });
+  const fleet = (await exec(ctx, "owner.fleet-list", { balances: true })) as { agents: Record<string, unknown>[]; fleetPaused: boolean; spentTodayUsd: number };
+  const ledger = (await exec(ctx, "owner.fleet-ledger", { limit: 40 })) as { rows: Record<string, unknown>[] };
+  const data = {
+    fleetPaused: fleet.fleetPaused,
+    spentTodayUsd: fleet.spentTodayUsd,
+    agents: fleet.agents.map((a) => ({ name: a.name, role: a.role, address: a.address, status: a.status, usdc: a.usdc, sol: a.sol, spentTodayUsd: a.spentTodayUsd, dailyLimitUsd: a.dailyLimitUsd })),
+    ledger: ledger.rows,
+    at: new Date().toISOString(),
+  };
+  boardCache = { at: Date.now(), data };
+  return data;
+}
 
 export function ownerTokenHash(): string {
   if (process.env.SAW_OWNER_TOKEN) return hash(process.env.SAW_OWNER_TOKEN);
@@ -104,6 +122,8 @@ export function createHandler(opts: VaultOptions) {
       }
 
       if (path === "/" || path === "/console") return html(res, 200, ownerConsoleHtml(opts.publicUrl));
+      if (path === "/board") return html(res, 200, boardHtml(opts.publicUrl));
+      if (path === "/board/data") return json(res, 200, { success: true, data: await boardData() });
       if (path === "/pair") return html(res, 200, ownerConsoleHtml(opts.publicUrl, url.searchParams.get("code") ?? ""));
 
       const pay = /^\/pay\/([A-Za-z0-9_]+)(\/status|\/tx)?$/.exec(path);
