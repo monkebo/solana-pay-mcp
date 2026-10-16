@@ -97,7 +97,6 @@ describe("vault HTTP", () => {
     expect(tools).toContain("wallet_send");
     expect(tools).toContain("create_invoice");
     expect(tools).toContain("x402_payment_pay");
-    expect(tools).toContain("defi_deposit");
     expect(tools.some((t) => t.startsWith("owner_"))).toBe(false);
     const r = (await client.callTool({ name: "wallet_status", arguments: {} })) as { structuredContent: { status: string; backend: string } };
     expect(r.structuredContent).toMatchObject({ view: "status", status: "CONNECTED", backend: "local" });

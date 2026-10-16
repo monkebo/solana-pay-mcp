@@ -13,16 +13,9 @@ const GROUPS: Record<string, { file: string; title: string; intro: string }> = {
   auth: { file: "authentication.md", title: "Authentication", intro: "Sign-in issues a session token. In local mode (agent on the owner's machine, `requirePairingApproval=false`) `auth verify` approves itself. In vault mode the owner approves the 6-digit code in the console or with `saw owner approve-pairing`." },
   wallet: { file: "wallet.md", title: "Wallet", intro: "Status, balances, history, settings, sends. A `txHash` means broadcast, not confirmed: tell the user it is pending and check `wallet tx-history --tx <hash>` or `wallet tx-lock`." },
   approvals: { file: "approvals.md", title: "Token approvals", intro: "On Solana an approval is a delegate on a token account. Unlimited delegations are flagged high risk." },
-  "market-order": { file: "market-order.md", title: "Market orders (Jupiter swaps)", intro: "An `orderId` is a submission, not a fill. Poll `market-order list --orderId <id>` until FINISHED or FAILED before reporting." },
-  "limit-order": { file: "limit-order.md", title: "Limit orders (Jupiter trigger orders)", intro: "A `strategyId` is a placement, not a fill. WORKING is the normal resting state; do not poll it to completion. Minimum $5 input." },
-  "contract-call": { file: "external-sign.md", title: "External signing (Developer Mode)", intro: "Two-step: `preview` parses, simulates and scores risk; `execute` takes the `requestId` within 10 minutes. Developer Mode is enabled by the owner only. Show `balanceChanges`, `authorityChanges` and `risks` before asking the user to confirm." },
-  "sign-message": { file: "external-sign.md", title: "External signing (Developer Mode)", intro: "" },
   "x402-payment": { file: "x402-payment.md", title: "x402 payments", intro: "Buyer side of HTTP 402. `preview` ranks options; `sign` returns the header to replay with (one use, ~60 s). `pay` does the whole loop for one URL. Confirm with the user before signing, before switching options, and before paying for a different resource." },
-  token: { file: "token.md", title: "Token lookup and audit", intro: "Never fabricate a mint address. Resolve symbols with `token search`, show the full mint next to the symbol, and run `token audit` before trading a token that is not SOL, USDC or USDT." },
   invoice: { file: "receiving.md", title: "Receiving: invoices and the ledger", intro: "Invoices carry a fresh reference key. `invoice status` reports UNPAID, CONFIRMED or SETTLED with confidence `exact` (reference key) or `probable` (matching inflow). `ledger rebuild` re-derives everything from the chain." },
   ledger: { file: "receiving.md", title: "Receiving: invoices and the ledger", intro: "" },
-  defi: { file: "defi.md", title: "DeFi (forwarded to the Binance backend)", intro: "Available when the owner has set the backend to `baw`; the same flags as Binance's `baw defi ...`, run under this wallet's `defi` daily limit. Other backends return VENUE_UNAVAILABLE." },
-  prediction: { file: "prediction.md", title: "Prediction markets (forwarded to the Binance backend)", intro: "Available when the backend is `baw`; same flags as Binance's `baw prediction ...`, under the `prediction` daily limit. Other backends return VENUE_UNAVAILABLE." },
   owner: { file: "owner.md", title: "Owner commands", intro: "Never callable with an agent session. The owner runs these on the vault host or in the owner console. Agents may tell the user which owner command would unblock them." },
   "skill-check": { file: "preflight.md", title: "Preflight", intro: "Run at the start of each conversation: skill version, CLI version, wallet status." },
   "cli-check": { file: "preflight.md", title: "Preflight", intro: "" },
@@ -38,7 +31,7 @@ function params(cmd: Command): { name: string; required: boolean; desc: string }
 function section(cmd: Command): string {
   const ps = params(cmd);
   const syntax = `saw ${cmd.cli}${ps.map((p) => (p.required ? ` --${p.name} <${p.name}>` : ` [--${p.name} <${p.name}>]`)).join("")} --json`;
-  const lines = [`### \`${cmd.cli}\``, "", cmd.description, "", `- Access: ${cmd.access}${cmd.write ? " · **state-changing: confirm with the user first**" : ""}${cmd.category ? ` · quota: ${cmd.category}` : ""}${cmd.forwardable ? " · forwarded to `baw` on the Binance backend" : ""}`, "", "```bash", syntax, "```"];
+  const lines = [`### \`${cmd.cli}\``, "", cmd.description, "", `- Access: ${cmd.access}${cmd.write ? " · **state-changing: confirm with the user first**" : ""}${cmd.category ? ` · quota: ${cmd.category}` : ""}`, "", "```bash", syntax, "```"];
   if (ps.length) {
     lines.push("", "| Parameter | Required | Description |", "|---|---|---|");
     for (const p of ps) lines.push(`| \`--${p.name}\` | ${p.required ? "Yes" : "No"} | ${p.desc.replace(/\|/g, "\\|")} |`);
@@ -70,7 +63,7 @@ export function generate(outDir: string): void {
 name: ${SKILL_NAME}
 description: |
   Use when the user mentions a Solana wallet, USDC/SOL payments, pay/send/transfer, invoice someone, check if an invoice was paid,
-  balance, transaction history, swap/buy/sell tokens, limit order, token approvals, sign a transaction or message,
+  balance, transaction history, token approvals,
   x402 / HTTP 402 payment, spending limits, daily limit, wallet policy, agent wallet, Binance Agentic Wallet on Solana,
   switch wallet backend, or any on-chain action on Solana. Drives the \`saw\` CLI (solana-pay-mcp).
 metadata:

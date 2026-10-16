@@ -107,7 +107,7 @@ saw wallet tx-history [--type <type>] [--size <size>] [--nextCursor <nextCursor>
 
 LOW / MEDIUM / HIGH priority-fee tiers from recent blocks (micro-lamports per compute unit) and the tip in SOL they imply for a typical 200k-CU transaction. A snapshot, not a quote.
 
-- Access: session · forwarded to `baw` on the Binance backend
+- Access: session
 
 ```bash
 saw wallet gas-price [--binanceChainId <binanceChainId>] [--tokenAddress <tokenAddress>] --json
@@ -145,7 +145,7 @@ saw wallet send [--amount <amount>] [--max <max>] --recipient <recipient> --toke
 
 Resend a transaction this wallet broadcast that has not landed yet. Solana has no fee bumping of a signed transaction, so this rebroadcasts the same bytes while its blockhash is valid (~60–90 s); after that it has expired and must be sent again.
 
-- Access: session · **state-changing: confirm with the user first** · forwarded to `baw` on the Binance backend
+- Access: session · **state-changing: confirm with the user first**
 
 ```bash
 saw wallet speed-up --txHash <txHash> [--level <level>] [--binanceChainId <binanceChainId>] --json
@@ -161,7 +161,7 @@ saw wallet speed-up --txHash <txHash> [--level <level>] [--binanceChainId <binan
 
 Not possible on Solana: there is no nonce replacement. A broadcast transaction either lands within its blockhash window (~60–90 s) or expires by itself. Returns a clear error.
 
-- Access: session · forwarded to `baw` on the Binance backend
+- Access: session
 
 ```bash
 saw wallet cancel --txHash <txHash> [--binanceChainId <binanceChainId>] --json

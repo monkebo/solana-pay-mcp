@@ -36,22 +36,6 @@ saw owner set-policy --assignments <assignments> --json
 |---|---|---|
 | `--assignments` | Yes | field=value pairs |
 
-### `owner dev-mode`
-
-Enable external signing (contract-call, sign-message) for a limited time with its own daily USD limit, or disable it.
-
-- Access: owner · **state-changing: confirm with the user first**
-
-```bash
-saw owner dev-mode [--enabled <enabled>] [--hours <hours>] [--dailyLimitUsd <dailyLimitUsd>] --json
-```
-
-| Parameter | Required | Description |
-|---|---|---|
-| `--enabled` | No |  |
-| `--hours` | No | How long it stays enabled (default 24) |
-| `--dailyLimitUsd` | No | Developer-mode daily limit in USD |
-
 ### `owner pairings`
 
 Agents waiting for sign-in approval.

@@ -79,7 +79,6 @@ define({
     "Resend a transaction this wallet broadcast that has not landed yet. Solana has no fee bumping of a signed transaction, so this rebroadcasts the same bytes while its blockhash is valid (~60–90 s); after that it has expired and must be sent again.",
   access: "session",
   write: true,
-  forwardable: true,
   positional: ["txHash"],
   params: { txHash: str("Signature of the pending transaction"), level: optStr("Accepted for compatibility; ignored on Solana"), binanceChainId: optStr("Ignored") },
   async run(ctx, { txHash }) {
@@ -105,7 +104,6 @@ define({
   description: "Not possible on Solana: there is no nonce replacement. A broadcast transaction either lands within its blockhash window (~60–90 s) or expires by itself. Returns a clear error.",
   access: "session",
   write: false,
-  forwardable: true,
   positional: ["txHash"],
   params: { txHash: str("Signature"), binanceChainId: optStr("Ignored") },
   async run(ctx, { txHash }) {

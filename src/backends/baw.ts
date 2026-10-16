@@ -83,7 +83,7 @@ registerBackend("baw", (cfg: BackendConfig): Backend => {
     canSign: false,
     address: addr,
     async signer() {
-      throw new WalletError("NOT_SUPPORTED", "The Binance backend signs only through its own commands (send, swap, x402, contract-call with Developer Mode). Switch to the local or signer backend for wallet-built transactions.");
+      throw new WalletError("NOT_SUPPORTED", "The Binance backend signs only through its own commands (send, x402). Switch to the local or signer backend for wallet-built transactions.");
     },
     async status() {
       try {
@@ -113,13 +113,6 @@ registerBackend("baw", (cfg: BackendConfig): Backend => {
       ])) as { txHash?: string };
       return { txHash: r?.txHash ?? null, status: "BROADCASTED", extra: { executedBy: "baw" } };
     },
-    async swap(_ctx, p, a) {
-      const r = (await run([
-        "market-order", "swap", "--fromTokenQty", p.view.fromCoinAmount, "--fromToken", p.from.native ? BAW_SOL : p.from.mint, "--toToken", p.to.native ? BAW_SOL : p.to.mint, "--binanceChainId", CHAIN_ID,
-        ...(a.slippage ? ["--slippage", a.slippage] : []), ...(a.mev === false ? ["--mev", "false"] : []), ...(a.gasLevel ? ["--gasLevel", a.gasLevel] : []),
-      ])) as { orderId?: string };
-      return { txHash: null, upstreamOrderId: r?.orderId ?? null, status: "PENDING" };
-    },
     async x402Sign(_ctx, preview, option) {
       const pv = (await run(["x402-payment", "preview", "--paymentRequirements", JSON.stringify({ x402Version: preview.version, resource: preview.resource ?? undefined, accepts: preview.options.map((o) => o.originalAccept) })])) as {
         paymentId: string;
@@ -130,9 +123,6 @@ registerBackend("baw", (cfg: BackendConfig): Backend => {
       if (!match || match.status !== "READY_TO_SIGN") throw new WalletError("NOT_SUPPORTED", `Binance wallet cannot sign this option (${match?.status ?? "not offered"}).`);
       const s = (await run(["x402-payment", "sign", "--paymentId", pv.paymentId, "--selectedIndex", String(match.index)])) as { paymentHeaderName: string; paymentHeaderValue: string; signatureExpiresAt: number };
       return s;
-    },
-    async forward(_ctx, cliWords, params) {
-      return run([...cliWords.split(" "), ...flags(params)]);
     },
   };
 });

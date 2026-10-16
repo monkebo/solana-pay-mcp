@@ -67,9 +67,6 @@ define({
     const p = readPolicy();
     const g = quotaView(p, "general");
     const x = quotaView(p, "x402");
-    const d = quotaView(p, "defi");
-    const pr = quotaView(p, "prediction");
-    const dv = quotaView(p, "devMode");
     const s = ctx.session;
     return {
       maxSigninDuration: p.maxSigninDuration,
@@ -82,18 +79,6 @@ define({
       allowedTokens: p.allowedTokens,
       addressBookOnly: p.addressBookOnly,
       allowUnpricedTokens: p.allowUnpricedTokens,
-      predictionEnabled: p.predictionEnabled,
-      predictionDailyLimit: p.predictionDailyLimitUsd,
-      predictionQuotaUsed: pr.used,
-      predictionQuotaLeft: pr.left,
-      predictionQuotaDate: pr.date,
-      defiDailyLimit: p.defiDailyLimitUsd,
-      defiQuotaUsed: d.used,
-      defiQuotaLeft: d.left,
-      defiQuotaDate: d.date,
-      developerModeQuotaUsed: dv.used,
-      developerModeQuotaDate: dv.date,
-      devMode: { enabled: p.devMode.enabled, expiresAt: p.devMode.expiresAt, dailyLimit: p.devMode.dailyLimitUsd, balanceExceeded: false },
       x402DailyLimit: p.x402DailyLimitUsd,
       x402QuotaUsed: x.used,
       x402QuotaLeft: x.left,

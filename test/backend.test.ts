@@ -76,12 +76,6 @@ beforeAll(async () => {
         return [{ symbol: "USDC", address: USDC_MINT.mainnet, binanceChainId: "CT_501", balance: "120.5", price: "1.0", value: "120.50" }, { symbol: "SOL", address: BAW_SOL, binanceChainId: "CT_501", balance: "2", price: "100", value: "200.00" }];
       case "wallet send":
         return { txHash: SIG };
-      case "market-order swap":
-        return { orderId: "bnb-order-1" };
-      case "defi deposit":
-        return { txHash: "defiTx" };
-      case "defi protocol-list":
-        return { total: 1, list: [{ defiProtocolId: "p1", protocolName: "Kamino" }] };
       case "approvals list":
         return { list: [], total: 0 };
       default:
@@ -115,8 +109,6 @@ describe("backend switch", () => {
     expect(bawCalls.at(-1)).toEqual(["wallet", "send", "--amount", "2", "--recipient", KEVIN, "--binanceChainId", "CT_501", "--tokenAddress", USDC_MINT.mainnet, "--gasLevel", "HIGH"]);
     // policy still applies in front of Binance
     await expect(exec(agent(), "wallet.send", { amount: "1", recipient: "GG6uob9Gn8sTojdK6w2vXeoSqft82reYaTvAzZtrdNuf", tokenAddress: "USDC" })).rejects.toMatchObject({ name: "RECIPIENT_NOT_IN_ADDRESS_BOOK" });
-    // wallet-built transactions are refused honestly
-    await expect(exec(agent(), "contract-call.preview", { unsignedTx: "AAAA" })).rejects.toMatchObject({ name: "UPSTREAM_ERROR" }); // forwarded to baw, fake has no handler
 
     // 3. remote HTTP signer
     await exec(owner(), "owner.set-backend", { kind: "signer", url: "https://signer.test", token: "t0k" });
@@ -140,21 +132,3 @@ describe("backend switch", () => {
   });
 });
 
-describe("pass-through under policy", () => {
-  it("forwards DeFi to baw with the defi quota applied, and refuses on local", async () => {
-    await expect(exec(agent(), "defi.protocol-list", {})).rejects.toMatchObject({ name: "VENUE_UNAVAILABLE" });
-    await exec(owner(), "owner.set-backend", { kind: "baw" });
-    const list = (await exec(agent(), "defi.protocol-list", { binanceChainId: "CT_501", investType: "Earn" })) as { list: { protocolName: string }[] };
-    expect(list.list[0].protocolName).toBe("Kamino");
-    expect(bawCalls.at(-1)).toEqual(["defi", "protocol-list", "--binanceChainId", "CT_501", "--investType", "Earn"]);
-    policy.patchPolicy({ defiDailyLimitUsd: "50" });
-    const dep = (await exec(agent(), "defi.deposit", { investmentId: "inv1", tokenAddress: USDC_MINT.mainnet, amount: "20" })) as { txHash: string; orderId: string };
-    expect(dep.txHash).toBe("defiTx");
-    const o = orders.get(dep.orderId)!;
-    expect(o).toMatchObject({ kind: "defi", category: "defi", usdValue: 20, backend: "baw" });
-    await expect(exec(agent(), "defi.deposit", { investmentId: "inv1", tokenAddress: USDC_MINT.mainnet, amount: "40" })).rejects.toMatchObject({ name: "DAILY_LIMIT_EXCEEDED" });
-    const sw = (await exec(agent(), "market-order.swap", { fromTokenQty: "10", fromToken: "USDC", toToken: "SOL" })) as { upstreamOrderId: string; backend: string };
-    expect(sw).toMatchObject({ backend: "baw", upstreamOrderId: "bnb-order-1" });
-    await exec(owner(), "owner.set-backend", { kind: "local" });
-  });
-});

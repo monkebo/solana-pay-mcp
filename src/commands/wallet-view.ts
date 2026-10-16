@@ -45,7 +45,6 @@ define({
 
 define({
   name: "wallet.gas-price",
-  forwardable: true,
   cli: "wallet gas-price",
   title: "Priority fee levels",
   description: "LOW / MEDIUM / HIGH priority-fee tiers from recent blocks (micro-lamports per compute unit) and the tip in SOL they imply for a typical 200k-CU transaction. A snapshot, not a quote.",

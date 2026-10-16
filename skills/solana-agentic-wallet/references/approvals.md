@@ -6,7 +6,7 @@ On Solana an approval is a delegate on a token account. Unlimited delegations ar
 
 Token accounts that have a delegate (spender) set, with the delegated amount. Unlimited delegations are flagged high risk.
 
-- Access: session · forwarded to `baw` on the Binance backend
+- Access: session
 
 ```bash
 saw approvals list [--binanceChainId <binanceChainId>] [--spender <spender>] --json
@@ -21,7 +21,7 @@ saw approvals list [--binanceChainId <binanceChainId>] [--spender <spender>] --j
 
 One delegation with the token balance, price and the approve/revoke history of that token account.
 
-- Access: session · forwarded to `baw` on the Binance backend
+- Access: session
 
 ```bash
 saw approvals detail [--binanceChainId <binanceChainId>] --tokenContract <tokenContract> --spender <spender> [--type <type>] --json
@@ -38,7 +38,7 @@ saw approvals detail [--binanceChainId <binanceChainId>] --tokenContract <tokenC
 
 Remove a delegate from a token account. Broadcasts a Revoke instruction; the delegation stays active until the transaction confirms.
 
-- Access: session · **state-changing: confirm with the user first** · forwarded to `baw` on the Binance backend
+- Access: session · **state-changing: confirm with the user first**
 
 ```bash
 saw approvals revoke [--binanceChainId <binanceChainId>] --tokenContract <tokenContract> --spender <spender> [--type <type>] [--orderId <orderId>] --json

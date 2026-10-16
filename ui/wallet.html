@@ -114,7 +114,6 @@ function render(sc) {
         <dt>Per payment</dt><dd>${sc.maxPayment === null ? "no cap" : "$" + esc(sc.maxPayment)}</dd>
         <dt>Recipients</dt><dd>${sc.addressBookOnly ? "address book only" : "any address (risky ones need approval)"}</dd>
         <dt>Risky tx</dt><dd>${esc(sc.abnormalTxnHandling)}</dd>
-        <dt>Dev mode</dt><dd>${sc.devMode?.enabled ? "on, $" + esc(sc.devMode.dailyLimit) + "/day" : "off"}</dd>
         <dt>Session ends</dt><dd>${esc(sc.sessionExpireTime || "-")}</dd>` : ""}
       </dl>`;
   } else if (v === "balance") {

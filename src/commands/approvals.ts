@@ -7,7 +7,6 @@ import { explorerUrl } from "../core/config.js";
 
 define({
   name: "approvals.list",
-  forwardable: true,
   cli: "approvals list",
   title: "List token approvals",
   description: "Token accounts that have a delegate (spender) set, with the delegated amount. Unlimited delegations are flagged high risk.",
@@ -22,7 +21,6 @@ define({
 
 define({
   name: "approvals.detail",
-  forwardable: true,
   cli: "approvals detail",
   title: "Approval details",
   description: "One delegation with the token balance, price and the approve/revoke history of that token account.",
@@ -36,7 +34,6 @@ define({
 
 define({
   name: "approvals.revoke",
-  forwardable: true,
   cli: "approvals revoke",
   title: "Revoke an approval",
   description: "Remove a delegate from a token account. Broadcasts a Revoke instruction; the delegation stays active until the transaction confirms.",

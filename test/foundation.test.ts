@@ -35,9 +35,8 @@ describe("policy", () => {
     const p = policy.readPolicy();
     expect(p.addressBookOnly).toBe(true);
     expect(p.tradeAllTokens).toBe(false);
-    const q = policy.patchPolicy({ dailyLimitUsd: "300", "devMode.enabled": "true", allowedTokens: '["a","b"]' });
+    const q = policy.patchPolicy({ dailyLimitUsd: "300", allowedTokens: '["a","b"]' });
     expect(q.dailyLimitUsd).toBe(300);
-    expect(q.devMode.enabled).toBe(true);
     expect(q.allowedTokens).toEqual(["a", "b"]);
     expect(() => policy.patchPolicy({ nope: "1" })).toThrow(WalletError);
     policy.writePolicy(policy.defaultPolicy());

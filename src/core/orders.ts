@@ -5,10 +5,8 @@ import { Collection } from "./store.js";
 import { WalletError } from "./errors.js";
 import { readPolicy, type Policy } from "./policy.js";
 
-export type Category = "general" | "x402" | "defi" | "prediction" | "devMode";
-export type OrderKind =
-  | "send" | "swap" | "limit" | "limit-cancel" | "revoke" | "contract-call" | "sign-message"
-  | "x402" | "defi" | "prediction" | "speed-up" | "cancel";
+export type Category = "general" | "x402";
+export type OrderKind = "send" | "revoke" | "x402" | "speed-up" | "cancel";
 export type OrderStatus =
   | "PENDING_CONFIRMATION" | "REJECTED" | "EXPIRED"
   | "BROADCASTED" | "CONFIRMED" | "FAILED" | "COMPLETED"
@@ -82,12 +80,6 @@ export function quotaLimit(p: Policy, category: Category): number {
       return p.dailyLimitUsd;
     case "x402":
       return p.x402DailyLimitUsd;
-    case "defi":
-      return p.defiDailyLimitUsd;
-    case "prediction":
-      return p.predictionDailyLimitUsd;
-    case "devMode":
-      return p.devMode.dailyLimitUsd;
   }
 }
 

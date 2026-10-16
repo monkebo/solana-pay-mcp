@@ -58,21 +58,6 @@ define({
 });
 
 define({
-  name: "owner.dev-mode",
-  cli: "owner dev-mode",
-  title: "Toggle developer mode",
-  description: "Enable external signing (contract-call, sign-message) for a limited time with its own daily USD limit, or disable it.",
-  access: "owner",
-  write: true,
-  params: { enabled: z.preprocess((v) => v === "true" || v === true, z.boolean()), hours: optNum("How long it stays enabled (default 24)"), dailyLimitUsd: optNum("Developer-mode daily limit in USD") },
-  async run(_ctx, { enabled, hours, dailyLimitUsd }) {
-    const p = readPolicy();
-    const expiresAt = enabled ? Math.floor(Date.now() / 1000) + Math.round((hours ?? 24) * 3600) : null;
-    return patchPolicy({ "devMode.enabled": enabled, "devMode.expiresAt": expiresAt, ...(dailyLimitUsd !== undefined ? { "devMode.dailyLimitUsd": dailyLimitUsd } : { "devMode.dailyLimitUsd": p.devMode.dailyLimitUsd }) }).devMode;
-  },
-});
-
-define({
   name: "owner.pairings",
   cli: "owner pairings",
   title: "Pending pairings",

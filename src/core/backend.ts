@@ -11,7 +11,6 @@ import { readPolicy } from "./policy.js";
 import { WalletError } from "./errors.js";
 import type { BalanceRow } from "./view.js";
 import type { PreparedSend, SendParams } from "./send.js";
-import type { PreparedSwap, SwapArgs } from "./swap.js";
 import type { Option, X402Preview } from "./x402.js";
 import type { OrderStatus } from "./orders.js";
 
@@ -39,10 +38,7 @@ export interface Backend {
   status(ctx: Ctx): Promise<{ connected: boolean; detail: string }>;
   balances?(ctx: Ctx): Promise<BalanceRow[]>;
   send?(ctx: Ctx, prepared: PreparedSend, params: SendParams): Promise<SendOutcome>;
-  swap?(ctx: Ctx, prepared: PreparedSwap, args: SwapArgs): Promise<{ txHash: string | null; upstreamOrderId: string | null; status: OrderStatus }>;
   x402Sign?(ctx: Ctx, preview: X402Preview, option: Option): Promise<{ paymentHeaderName: string; paymentHeaderValue: string; signatureExpiresAt: number }>;
-  /** Run a command this control plane has no native implementation for (DeFi, prediction markets...). */
-  forward?(ctx: Ctx, cliWords: string, params: Record<string, unknown>): Promise<unknown>;
 }
 
 export interface BackendConfig {

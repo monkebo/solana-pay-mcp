@@ -30,10 +30,6 @@ export interface Policy {
   /** Vault mode: the owner must approve each `auth signin` pairing. Local mode: auto-approved. */
   requirePairingApproval: boolean;
   x402DailyLimitUsd: number;
-  defiDailyLimitUsd: number;
-  predictionEnabled: boolean;
-  predictionDailyLimitUsd: number;
-  devMode: { enabled: boolean; expiresAt: number | null; dailyLimitUsd: number };
   /** Which wallet executes: local key, Binance baw, HTTP signer, or a human's wallet via Solana Pay. */
   backend: BackendConfig;
 }
@@ -57,10 +53,6 @@ export function defaultPolicy(): Policy {
     inactiveSignoutDuration: "48h",
     requirePairingApproval: false,
     x402DailyLimitUsd: 20,
-    defiDailyLimitUsd: 100,
-    predictionEnabled: false,
-    predictionDailyLimitUsd: 0,
-    devMode: { enabled: false, expiresAt: null, dailyLimitUsd: 0 },
     backend: { kind: "local" },
   };
 }
@@ -68,17 +60,13 @@ export function defaultPolicy(): Policy {
 const doc = new Doc<Policy>("policy", defaultPolicy);
 
 export function readPolicy(): Policy {
-  const p = doc.read();
-  if (p.devMode.enabled && p.devMode.expiresAt !== null && p.devMode.expiresAt * 1000 < Date.now()) {
-    p.devMode = { ...p.devMode, enabled: false };
-  }
-  return p;
+  return doc.read();
 }
 
 export function writePolicy(p: Policy): Policy {
   parseDuration(p.maxSigninDuration);
   parseDuration(p.inactiveSignoutDuration);
-  for (const k of ["dailyLimitUsd", "x402DailyLimitUsd", "defiDailyLimitUsd", "predictionDailyLimitUsd"] as const) {
+  for (const k of ["dailyLimitUsd", "x402DailyLimitUsd"] as const) {
     if (!(Number.isFinite(p[k]) && p[k] >= 0)) throw new WalletError("INVALID_PARAM", `${k} must be a non-negative number`);
   }
   if (!["local", "baw", "signer", "solana-pay"].includes(p.backend?.kind)) throw new WalletError("INVALID_PARAM", "backend.kind must be local | baw | signer | solana-pay");

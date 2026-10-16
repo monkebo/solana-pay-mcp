@@ -34,7 +34,7 @@ Payers are expensive to win; payees are a public key. Invoices with settlement p
 
 ## What we deliberately did not build
 
-Native Solana DeFi and prediction-market venues. On the Binance backend they forward to `baw` under our policy; elsewhere they return a clear error. Parity theater earns nothing and costs trust.
+Trading, DeFi and prediction-market venues, and developer-mode external signing. 0.4 shipped them for Binance parity; 0.5 removed them. Parity theater earns nothing and costs trust. The product is payments under policy: send, batch, receive, approve, audit.
 
 ## The demo
 

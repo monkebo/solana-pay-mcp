@@ -7,7 +7,7 @@ Agents get one command surface (CLI, MCP tools, or an agent skill). The owner ge
 | Backend | What holds the key | When to use it |
 |---|---|---|
 | `local` | a keypair on the vault host (self-custody) | default; no account, no KYC, runs anywhere |
-| `baw` | [Binance Agentic Wallet](https://developers.binance.com/docs/agentic-wallet/welcome), via its `baw` CLI | you already use Binance; get DeFi and prediction markets too |
+| `baw` | [Binance Agentic Wallet](https://developers.binance.com/docs/agentic-wallet/welcome), via its `baw` CLI | you already use Binance |
 | `signer` | any HTTP remote signer (Turnkey, Privy, Fireblocks, your HSM) | custody requirements |
 | `solana-pay` | a human's own wallet (Phantom, Solflare, Backpack) | the agent prepares, the human scans and signs |
 
@@ -79,13 +79,9 @@ Risky or large actions return `PENDING_CONFIRMATION`; the owner approves or reje
 | auth | `signin`, `verify`, `signout` |
 | wallet | `status`, `chains`, `address`, `balance`, `tx-history`, `settings`, `tx-lock`, `gas-price`, `contacts`, `send`, `pay-many`, `speed-up`, `cancel` |
 | invoice / ledger | `invoice create/status/list`, `ledger list/export/rebuild` |
-| market-order | `quote`, `swap`, `list` (Jupiter) |
-| limit-order | `buy`, `sell`, `list`, `cancel` (Jupiter trigger orders) |
 | approvals | `list`, `detail`, `revoke` (SPL delegates) |
-| contract-call / sign-message | `preview`, `execute`, `result`, `history` (Developer Mode) |
 | x402-payment | `preview`, `sign`, `pay`, `list` |
 | token | `search`, `audit` |
-| defi, prediction | forwarded to Binance when the backend is `baw` |
 
 Every command takes `--json` and returns `{ success, data }` or `{ success: false, error: { code, name, message } }`. The full reference is generated from the code: [`skills/solana-agentic-wallet`](skills/solana-agentic-wallet/SKILL.md).
 
@@ -93,13 +89,12 @@ Every command takes `--json` and returns `{ success, data }` or `{ success: fals
 
 `saw owner policy` / `saw owner set-policy field=value …`
 
-- `dailyLimitUsd`, `maxPaymentUsd`, and separate daily limits for `x402`, `defi`, `prediction` and Developer Mode
+- `dailyLimitUsd`, `maxPaymentUsd`, and a separate daily limit for `x402`
 - `addressBookOnly`: sends only to saved contacts
 - `tradeAllTokens` / `allowedTokens`: which mints the agent may touch
 - `abnormalTxnHandling`: `AutoReject` or `NeedConfirmation` for unknown recipients, unverified tokens, large amounts, authority changes
 - `confirmAboveUsd`: anything above this waits for the owner
 - `maxSigninDuration`, `inactiveSignoutDuration`, `requirePairingApproval`
-- `devMode`: time-boxed external signing with its own limit (`saw owner dev-mode --enabled true --hours 24 --dailyLimitUsd 50`)
 - `backend`: `saw owner set-backend --kind local|baw|signer|solana-pay`
 
 Defaults fail closed: $100/day, $50 per payment, contacts only, stables and SOL only, unknown tokens blocked, no USD price means no send.
@@ -119,14 +114,13 @@ Defaults fail closed: $100/day, $50 per payment, contacts only, stables and SOL 
 | `SOLANA_PAY_RECIPIENT` | wallet address | where invoices are paid |
 | `SAW_VAULT_URL` | unset | agent side: use a remote vault |
 | `SAW_OWNER_TOKEN` | generated | vault owner token |
-| `JUPITER_API_BASE`, `JUPITER_API_KEY` | lite-api.jup.ag | swaps, prices, token data |
-| `JITO_TIP_LAMPORTS` | unset | MEV protection for swaps via Jito tips |
+| `JUPITER_API_BASE`, `JUPITER_API_KEY` | lite-api.jup.ag | USD prices and token metadata for limits and risk checks |
 
 ## Develop
 
 ```bash
 npm i
-npm test              # 47 tests, mocked RPC and Jupiter
+npm test              # mocked RPC and price API
 npm run typecheck
 npm run gen:skill     # regenerate skills/ from the command registry
 SMOKE_HOME=$(mktemp -d) npm run smoke   # drive the MCP server over stdio
