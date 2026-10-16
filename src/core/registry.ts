@@ -4,6 +4,8 @@ import { z } from "zod";
 import { WalletError } from "./errors.js";
 import { authenticate } from "./session.js";
 import type { Ctx } from "./ctx.js";
+import { activeBackend } from "./backend.js";
+import type { Category } from "./orders.js";
 
 export type Access = "public" | "session" | "owner";
 
@@ -19,6 +21,12 @@ export interface Command<S extends z.ZodRawShape = z.ZodRawShape> {
   write: boolean;
   /** Names of params that may be given positionally on the CLI, in order. */
   positional?: string[];
+  /** Quota category for writes (default general). */
+  category?: Category;
+  /** Accept unknown params (pass-through commands). */
+  loose?: boolean;
+  /** When the active backend can forward (Binance), run it there instead of the native implementation. */
+  forwardable?: boolean;
   params: S;
   run: (ctx: Ctx, args: z.infer<z.ZodObject<S>>) => Promise<unknown>;
 }
@@ -60,13 +68,19 @@ export async function exec(ctx: Ctx, name: string, raw: Record<string, unknown>)
   }
   let args: Record<string, unknown>;
   try {
-    args = z.object(cmd.params).parse(raw);
+    const schema = z.object(cmd.params);
+    args = (cmd.loose ? schema.passthrough() : schema).parse(raw);
   } catch (e) {
     if (e instanceof z.ZodError) {
       const issues = e.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ");
       throw new WalletError("INVALID_PARAM", `Invalid parameters for ${cmd.cli}: ${issues}`);
     }
     throw e;
+  }
+  const be = activeBackend();
+  if (cmd.forwardable && be.forward) {
+    const { forwarded } = await import("./forward.js");
+    return forwarded(ctx, cmd, args);
   }
   return cmd.run(ctx, args as never);
 }

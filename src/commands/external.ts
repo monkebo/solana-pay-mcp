@@ -9,6 +9,8 @@ import { WalletError } from "../core/errors.js";
 
 define({
   name: "contract-call.preview",
+  forwardable: true,
+  category: "devMode",
   cli: "contract-call preview",
   title: "Preview an external transaction",
   description: "Developer mode. Decode, simulate and risk-score an unsigned base64 transaction built by a dApp or SDK: programs called, balance changes, authority changes. Returns a requestId for execute (10 minutes).",
@@ -23,6 +25,8 @@ define({
 
 define({
   name: "contract-call.execute",
+  forwardable: true,
+  category: "devMode",
   cli: "contract-call execute",
   title: "Execute a previewed transaction",
   description: "Sign and broadcast a transaction previewed with contract-call preview. Counts the simulated USD outflow against the developer-mode daily limit; risky previews wait for owner confirmation.",
@@ -55,6 +59,8 @@ define({
 
 define({
   name: "sign-message.preview",
+  forwardable: true,
+  category: "devMode",
   cli: "sign-message preview",
   title: "Preview a message signature",
   description: "Developer mode. Parse a message to sign: SOLANA_OFFCHAIN (the Solana off-chain message standard, safe by construction) or RAW (plain bytes, what most dApps' signMessage uses). Returns a requestId for execute.",
@@ -69,6 +75,8 @@ define({
 
 define({
   name: "sign-message.execute",
+  forwardable: true,
+  category: "devMode",
   cli: "sign-message execute",
   title: "Sign a previewed message",
   description: "Produce the signature for a message previewed with sign-message preview. Risky previews wait for owner confirmation; fetch the result later with sign-message result.",
@@ -103,6 +111,8 @@ define({
 
 define({
   name: "sign-message.result",
+  forwardable: true,
+  category: "devMode",
   cli: "sign-message result",
   title: "Fetch a signature result",
   description: "Status of a sign-message order: COMPLETED with the signature, PENDING_CONFIRMATION, REJECTED or EXPIRED.",
@@ -120,6 +130,8 @@ define({
 
 define({
   name: "sign-message.history",
+  forwardable: true,
+  category: "devMode",
   cli: "sign-message history",
   title: "Signature history",
   description: "Messages this wallet has signed.",

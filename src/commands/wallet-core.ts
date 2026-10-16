@@ -2,11 +2,12 @@ import { z } from "zod";
 import { define } from "../core/registry.js";
 import { CHAINS, CHAIN_ID, CLI_VERSION, SKILL_NAME, nowMs } from "../core/config.js";
 import { authenticate } from "../core/session.js";
-import { hasKey, walletAddress } from "../core/signer.js";
+import { walletAddress } from "../core/signer.js";
 import { readPolicy } from "../core/policy.js";
 import { quotaView, lockingOrders } from "../core/orders.js";
 import { refreshPending } from "../core/track.js";
 import { listContacts } from "../core/addressbook.js";
+import { activeBackend } from "../core/backend.js";
 
 define({
   name: "wallet.status",
@@ -22,7 +23,9 @@ define({
     } catch {
       if (ctx.role !== "owner") return { status: "UNCONNECTED" };
     }
-    return { status: hasKey() ? "CONNECTED" : "CREATING" };
+    const be = activeBackend();
+    const st = await be.status(ctx);
+    return { status: st.connected ? "CONNECTED" : "CREATING", backend: be.kind, backendLabel: be.label, detail: st.detail };
   },
 });
 

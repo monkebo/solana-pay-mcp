@@ -1,4 +1,5 @@
-// Pure logic: Solana Pay URLs and paid-detection. No I/O, so it is unit-testable.
+// Solana Pay URLs and paid-detection. Pure except for reference-key generation.
+import { generateKeyPairSigner } from "@solana/kit";
 
 export type Cluster = "devnet" | "mainnet";
 
@@ -36,6 +37,19 @@ export function solanaPayUrl(req: PaymentRequest, label = "solana-pay-mcp"): str
     memo: req.id,
   });
   return `solana:${req.recipient}?${q.toString()}`;
+}
+
+/** A generic Solana Pay transfer request: any SPL mint, any recipient. */
+export function transferRequestUrl(p: { recipient: string; amount: string; mint: string; reference: string; memo?: string; label?: string; message?: string }): string {
+  const q = new URLSearchParams({ amount: p.amount, "spl-token": p.mint, reference: p.reference, label: p.label ?? "saw" });
+  if (p.message) q.set("message", p.message);
+  if (p.memo) q.set("memo", p.memo);
+  return `solana:${p.recipient}?${q.toString()}`;
+}
+
+/** A reference is just a fresh public key. The secret is thrown away; only the address matters. */
+export async function newReference(): Promise<string> {
+  return (await generateKeyPairSigner()).address;
 }
 
 /** "12.5" -> 12500000n (USDC) or 12500000000n (SOL). Rejects too many decimals or non-numeric input. */

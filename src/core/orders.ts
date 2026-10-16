@@ -41,6 +41,8 @@ export interface Order {
   lastValidBlockHeight?: number;
   /** Why confirmation was required / why it was blocked. */
   reasons?: string[];
+  /** Which wallet executed it. */
+  backend?: string;
   details: Record<string, unknown>;
   error?: string;
 }

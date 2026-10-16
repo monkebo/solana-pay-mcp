@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { amount, define, optBool, optStr, str } from "../core/registry.js";
 import { prepareSend, sendDetails } from "../core/send.js";
-import { gated } from "../core/gate.js";
+import { gated, type Executed } from "../core/gate.js";
 import { sendInstructions, broadcastWire } from "../core/tx.js";
 import { explorerUrl } from "../core/config.js";
 import { orders, setOrder } from "../core/orders.js";
 import { WalletError } from "../core/errors.js";
 import { refreshPending } from "../core/track.js";
+import { activeBackend } from "../core/backend.js";
 
 export const gasLevelSchema = z.enum(["LOW", "MEDIUM", "HIGH"]).optional().describe("Priority fee tier (default MEDIUM)");
 
@@ -45,13 +46,25 @@ define({
       command: "wallet.send",
       params: { ...p, dryRun: undefined, orderId: undefined },
       reasons: s.reasons,
-      async execute() {
+      async execute(): Promise<Executed & { result: Record<string, unknown> }> {
+        const be = activeBackend();
+        if (be.send) {
+          const o = await be.send(ctx, s, p);
+          return {
+            txHash: o.txHash,
+            status: o.status,
+            signedTx: o.signedTx,
+            lastValidBlockHeight: o.lastValidBlockHeight,
+            details: { backend: be.kind, ...(o.extra ?? {}) },
+            result: { txHash: o.txHash, status: o.status, explorer: o.txHash ? explorerUrl(o.txHash) : null, backend: be.kind, ...details, ...(o.extra ?? {}), note: o.txHash ? "Broadcast, not yet confirmed. Track with `wallet tx-history --tx <txHash>`." : "Waiting for the wallet to sign." },
+          };
+        }
         const b = await sendInstructions(ctx, s.instructions, { gasLevel: p.gasLevel });
         return {
           txHash: b.signature,
           signedTx: b.signedTx,
           lastValidBlockHeight: b.lastValidBlockHeight,
-          result: { txHash: b.signature, status: "BROADCASTED", explorer: explorerUrl(b.signature), ...details, note: "Broadcast, not yet confirmed. Track with `wallet tx-history --tx <txHash>`." },
+          result: { txHash: b.signature, status: "BROADCASTED", explorer: explorerUrl(b.signature), backend: be.kind, ...details, note: "Broadcast, not yet confirmed. Track with `wallet tx-history --tx <txHash>`." },
         };
       },
     });
@@ -66,6 +79,7 @@ define({
     "Resend a transaction this wallet broadcast that has not landed yet. Solana has no fee bumping of a signed transaction, so this rebroadcasts the same bytes while its blockhash is valid (~60–90 s); after that it has expired and must be sent again.",
   access: "session",
   write: true,
+  forwardable: true,
   positional: ["txHash"],
   params: { txHash: str("Signature of the pending transaction"), level: optStr("Accepted for compatibility; ignored on Solana"), binanceChainId: optStr("Ignored") },
   async run(ctx, { txHash }) {
@@ -91,6 +105,7 @@ define({
   description: "Not possible on Solana: there is no nonce replacement. A broadcast transaction either lands within its blockhash window (~60–90 s) or expires by itself. Returns a clear error.",
   access: "session",
   write: false,
+  forwardable: true,
   positional: ["txHash"],
   params: { txHash: str("Signature"), binanceChainId: optStr("Ignored") },
   async run(ctx, { txHash }) {
