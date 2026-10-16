@@ -11,3 +11,4 @@ import "./token.js";
 import "./external.js";
 import "./x402.js";
 import "./passthrough.js";
+import "./invoice.js";

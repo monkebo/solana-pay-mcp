@@ -41,7 +41,7 @@ a { color:var(--accent); }
 /*__APP_BUNDLE__*/
 const App = globalThis.__McpExtApp;
 const root = document.getElementById("root");
-const app = new App({ name: "solana-pay", version: "0.3.0" });
+const app = new App({ name: "solana-pay", version: "0.4.0" });
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const short = (a) => (a && a.length > 12 ? a.slice(0, 4) + "…" + a.slice(-4) : a);
@@ -50,68 +50,100 @@ const link = (url, text) => `<a href="${esc(url)}" data-link>${esc(text)}</a>`;
 function render(sc) {
   if (!sc || !sc.view) { root.innerHTML = `<span class="muted">No data.</span>`; return; }
   const v = sc.view;
-  if (v === "preview" || v === "sent") {
-    const sent = v === "sent";
+  const pending = sc.status === "PENDING_CONFIRMATION";
+  if (v === "send") {
+    const preview = sc.wouldRequireConfirmation !== undefined && !sc.status; // dryRun result
+    const label = pending ? "Waiting for owner approval" : preview ? "Confirm payment" : sc.payUrl ? "Scan to pay from your wallet" : "Sent";
+    const pill = pending ? "PENDING" : preview ? "PREVIEW" : esc(sc.status || "SENT");
     root.innerHTML = `
-      <div class="top"><span class="label">${sent ? "Sent" : "Confirm payment"} · ${esc(sc.cluster)}</span>
-        <span class="pill">${sent ? "SENT" : "PREVIEW"}</span></div>
+      <div class="top"><span class="label">${label}${sc.backend ? " · via " + esc(sc.backend) : ""}</span><span class="pill ${pending ? "bad" : ""}">${pill}</span></div>
       <div class="amount">${esc(sc.amount)}<small>${esc(sc.token)}</small></div>
       <dl>
-        <dt>To</dt><dd><b>${esc(sc.toLabel)}</b> <span class="mono">${esc(short(sc.recipient))}</span></dd>
-        <dt>For</dt><dd>${esc(sc.memo)}</dd>
-        <dt>From</dt><dd class="mono">${esc(short(sc.from))}</dd>
-        <dt>Daily cap</dt><dd>${sent ? `${esc(sc.remainingCap)} ${esc(sc.token)} left` : `${esc(sc.spent)} of ${esc(sc.cap)} ${esc(sc.token)} used`}</dd>
+        <dt>To</dt><dd><b>${esc(sc.recipientLabel || "")}</b> <span class="mono">${esc(sc.recipient)}</span></dd>
+        ${sc.memo ? `<dt>For</dt><dd>${esc(sc.memo)}</dd>` : ""}
+        <dt>Value</dt><dd>$${esc(sc.amountUsd)}</dd>
+        ${sc.estimatedNetworkFeeSol ? `<dt>Fee</dt><dd>~${esc(sc.estimatedNetworkFeeSol)} SOL</dd>` : ""}
+        ${sc.reasons && sc.reasons.length ? `<dt>Flags</dt><dd class="err">${esc(sc.reasons.join("; "))}</dd>` : ""}
       </dl>
-      <div class="actions">${sent
-        ? link(sc.explorer, "View on Solana Explorer")
-        : `<button class="primary" id="go">Pay ${esc(sc.amount)} ${esc(sc.token)}</button>`}</div>
-      <div id="msg"></div>`;
-    if (!sent) document.getElementById("go").onclick = () => confirm("send_payment", sc.args);
-  } else if (v === "batch_preview" || v === "batch_sent") {
-    const sent = v === "batch_sent";
-    const rows = sc.rows.map((r) => `<tr><td><b>${esc(r.to)}</b> <span class="mono muted">${esc(short(r.recipient))}</span><br><span class="muted">${esc(r.memo)}</span>${r.status ? `<br>${r.explorer ? link(r.explorer, r.status) : `<span class="err">${esc(r.status)}</span>`}` : ""}</td><td class="r">${esc(r.amount)} ${esc(sc.token)}</td></tr>`).join("");
+      ${sc.qrSvg ? `<div class="qr">${sc.qrSvg}</div>` : ""}
+      <div class="actions">
+        ${preview ? `<button class="primary" id="go">Pay ${esc(sc.amount)} ${esc(sc.token)}</button>` : ""}
+        ${pending ? `<button class="primary" id="approve">Approve</button><button id="reject">Reject</button>` : ""}
+        ${sc.explorer ? link(sc.explorer, "View on Solana Explorer") : ""}
+        ${sc.payUrl ? `<button id="copy">Copy pay link</button>` : ""}
+      </div>
+      <div id="msg">${pending ? `<span class="muted">${esc(sc.message || "")}</span>` : ""}</div>`;
+    const go = document.getElementById("go");
+    if (go) go.onclick = () => rerun("wallet_send", { amount: sc.amount, recipient: sc.recipientLabel || sc.recipient, tokenAddress: sc.tokenAddress, memo: sc.memo || undefined });
+    wireApproval(sc.orderId);
+    const c = document.getElementById("copy");
+    if (c) c.onclick = async () => { try { await navigator.clipboard.writeText(sc.payUrl); say("Copied."); } catch { say(sc.payUrl); } };
+  } else if (v === "batch") {
+    const rows = (sc.rows || []).map((r) => `<tr><td><b>${esc(r.to)}</b><br><span class="muted">${esc(r.memo || "")}</span>${r.status ? `<br>${r.txHash ? `<span class="pill">${esc(r.status)}</span>` : `<span class="${r.status === "FAILED" ? "err" : "muted"}">${esc(r.status)}${r.error ? ": " + esc(r.error) : ""}</span>`}` : ""}</td><td class="r">${esc(r.amount)}</td></tr>`).join("");
+    const preview = (sc.rows || []).every((r) => r.status === "PREVIEW");
     root.innerHTML = `
-      <div class="top"><span class="label">${sent ? "Batch sent" : "Confirm batch"} · ${sc.rows.length} payments</span>
-        <span class="pill ${sc.overCap ? "bad" : ""}">${sent ? "DONE" : sc.overCap ? "OVER CAP" : "PREVIEW"}</span></div>
-      <div class="amount">${esc(sc.total)}<small>${esc(sc.token)}</small></div>
+      <div class="top"><span class="label">${preview ? "Confirm batch" : "Batch"} · ${esc(sc.of)} payments</span><span class="pill">${preview ? "PREVIEW" : esc(sc.completed) + "/" + esc(sc.of)}</span></div>
+      <div class="amount">$${esc(sc.totalUsd)}</div>
       <table>${rows}</table>
-      ${sent ? "" : `<span class="muted">${esc(sc.left)} ${esc(sc.token)} left in daily cap.</span>
-      <div class="actions"><button class="primary" id="go" ${sc.overCap ? "disabled" : ""}>Pay all ${esc(sc.total)} ${esc(sc.token)}</button></div>`}
+      ${preview ? `<div class="actions"><button class="primary" id="go">Pay all</button></div>` : ""}
       <div id="msg"></div>`;
-    if (!sent && !sc.overCap) document.getElementById("go").onclick = () => confirm("pay_many", sc.args);
+    const go = document.getElementById("go");
+    if (go) go.onclick = () => rerun("wallet_pay_many", { payments: (sc.rows || []).map((r) => ({ to: r.to, amount: r.amount, memo: r.memo || undefined })) });
   } else if (v === "invoice") {
     root.innerHTML = `
-      <div class="top"><span class="label">Invoice · ${esc(sc.cluster)}</span><span class="pill">${esc(sc.id)}</span></div>
+      <div class="top"><span class="label">Invoice · ${esc(sc.cluster)}</span><span class="pill ${sc.paid ? "" : "bad"}">${esc(sc.status || (sc.paid ? "PAID" : "UNPAID"))}</span></div>
       <div class="amount">${esc(sc.amount)}<small>USDC</small></div>
-      <dl><dt>For</dt><dd>${esc(sc.memo)}</dd><dt>Pay to</dt><dd class="mono">${esc(sc.recipient)}</dd></dl>
-      <div class="qr">${sc.qrSvg}</div>
-      <div class="actions"><button id="copy">Copy pay link</button><button id="check">Check if paid</button></div>
-      <div id="msg"></div>`;
-    document.getElementById("copy").onclick = async () => {
-      try { await navigator.clipboard.writeText(sc.url); say("Copied."); } catch { say(sc.url); }
-    };
-    document.getElementById("check").onclick = async () => {
-      const r = await call("check_payment", { id: sc.id });
-      if (r) say(r.structuredContent?.paid ? "PAID ✓" : "Not paid yet.");
-    };
-  } else if (v === "status") {
-    root.innerHTML = `
-      <div class="top"><span class="label">Agent wallet · ${esc(sc.cluster)}</span><span class="pill">${sc.signer ? "ACTIVE" : "NO SIGNER"}</span></div>
-      ${sc.signer ? `
-      <div class="amount">${esc(sc.usdc)}<small>USDC</small></div>
-      <dl>
-        <dt>SOL</dt><dd>${esc(sc.sol)}</dd>
-        <dt>Today</dt><dd>${esc(sc.spentUsdc)} / ${esc(sc.capUsdc)} USDC · ${esc(sc.spentSol)} / ${esc(sc.capSol)} SOL</dd>
-        <dt>Address</dt><dd class="mono">${esc(sc.signer)}</dd>
-      </dl>
-      <div class="qr">${sc.qrSvg}</div>
-      <span class="muted">Scan to fund the agent wallet. Send USDC plus a little SOL for fees.</span>
-      <div class="actions"><button id="copy">Copy address</button></div>` : `<span class="muted">Run <span class="mono">solana-pay-mcp keygen</span> to give Claude a wallet.</span>`}
+      <dl><dt>For</dt><dd>${esc(sc.memo)}</dd><dt>Pay to</dt><dd class="mono">${esc(sc.recipient)}</dd><dt>Id</dt><dd class="mono">${esc(sc.id)}</dd>
+      ${sc.paid ? `<dt>Paid</dt><dd>${esc(sc.paidAt)}${sc.payerLabel ? " by <b>" + esc(sc.payerLabel) + "</b>" : sc.payer ? " by <span class='mono'>" + esc(short(sc.payer)) + "</span>" : ""}${sc.confidence === "probable" ? " <span class='muted'>(matched by inflow)</span>" : ""}</dd>` : ""}</dl>
+      ${sc.qrSvg && !sc.paid ? `<div class="qr">${sc.qrSvg}</div>` : ""}
+      <div class="actions">${sc.paid ? link(sc.explorer, "View on Solana Explorer") : `<button id="copy">Copy pay link</button><button id="check">Check if paid</button>`}</div>
       <div id="msg"></div>`;
     const c = document.getElementById("copy");
-    if (c) c.onclick = async () => { try { await navigator.clipboard.writeText(sc.signer); say("Copied."); } catch { say(sc.signer); } };
+    if (c) c.onclick = async () => { try { await navigator.clipboard.writeText(sc.url); say("Copied."); } catch { say(sc.url); } };
+    const ch = document.getElementById("check");
+    if (ch) ch.onclick = async () => { const r = await call("invoice_status", { id: sc.id }); if (r?.structuredContent) render({ ...r.structuredContent, qrSvg: sc.qrSvg }); };
+  } else if (v === "status") {
+    const q = (used, left, limit) => `${esc(used)} used · ${esc(left)} left of $${esc(limit)}`;
+    root.innerHTML = `
+      <div class="top"><span class="label">Wallet · ${esc(sc.backend || sc.active?.kind || "")}</span><span class="pill ${sc.status === "CONNECTED" || sc.active?.connected ? "" : "bad"}">${esc(sc.status || (sc.active?.connected ? "CONNECTED" : "NOT READY"))}</span></div>
+      <dl>
+        ${sc.backendLabel || sc.active?.label ? `<dt>Backend</dt><dd>${esc(sc.backendLabel || sc.active.label)}</dd>` : ""}
+        ${sc.detail || sc.active?.detail ? `<dt></dt><dd class="muted">${esc(sc.detail || sc.active.detail)}</dd>` : ""}
+        ${sc.dailyLimit !== undefined ? `<dt>Daily</dt><dd>$${q(sc.quotaUsed, sc.quotaLeft, sc.dailyLimit)}</dd>
+        <dt>x402</dt><dd>$${q(sc.x402QuotaUsed, sc.x402QuotaLeft, sc.x402DailyLimit)}</dd>
+        <dt>Per payment</dt><dd>${sc.maxPayment === null ? "no cap" : "$" + esc(sc.maxPayment)}</dd>
+        <dt>Recipients</dt><dd>${sc.addressBookOnly ? "address book only" : "any address (risky ones need approval)"}</dd>
+        <dt>Risky tx</dt><dd>${esc(sc.abnormalTxnHandling)}</dd>
+        <dt>Dev mode</dt><dd>${sc.devMode?.enabled ? "on, $" + esc(sc.devMode.dailyLimit) + "/day" : "off"}</dd>
+        <dt>Session ends</dt><dd>${esc(sc.sessionExpireTime || "-")}</dd>` : ""}
+      </dl>`;
+  } else if (v === "balance") {
+    const rows = (sc.rows || []).map((r) => `<tr><td><b>${esc(r.symbol)}</b> <span class="mono muted">${esc(short(r.address))}</span></td><td class="r">${esc(r.balance)}</td><td class="r">${r.value === null ? "-" : "$" + esc(r.value)}</td></tr>`).join("");
+    const total = (sc.rows || []).reduce((a, r) => a + Number(r.value || 0), 0);
+    root.innerHTML = `<div class="top"><span class="label">Balances</span><span class="pill">$${total.toFixed(2)}</span></div><table>${rows || "<tr><td class='muted'>empty</td></tr>"}</table>`;
+  } else if (v === "pending") {
+    const rows = (sc.rows || []).map((o) => `<tr><td><b>${esc(o.summary)}</b><br><span class="muted">${esc((o.reasons || []).join("; "))}</span><div class="actions" style="margin-top:6px"><button class="primary" data-approve="${esc(o.id)}">Approve</button><button data-reject="${esc(o.id)}">Reject</button></div></td><td class="r">$${esc((o.usdValue || 0).toFixed(2))}</td></tr>`).join("");
+    root.innerHTML = `<div class="top"><span class="label">Waiting for your approval</span><span class="pill ${(sc.rows || []).length ? "bad" : ""}">${(sc.rows || []).length}</span></div><table>${rows || "<tr><td class='muted'>nothing waiting</td></tr>"}</table><div id="msg"></div>`;
+    root.querySelectorAll("[data-approve]").forEach((b) => (b.onclick = () => rerun("owner_approve", { orderId: b.dataset.approve })));
+    root.querySelectorAll("[data-reject]").forEach((b) => (b.onclick = () => rerun("owner_reject", { orderId: b.dataset.reject })));
   }
   root.querySelectorAll("a[data-link]").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); app.openLink({ url: a.href }).catch(() => {}); }));
+}
+
+function wireApproval(orderId) {
+  const a = document.getElementById("approve"), r = document.getElementById("reject");
+  if (a) a.onclick = () => rerun("owner_approve", { orderId });
+  if (r) r.onclick = () => rerun("owner_reject", { orderId });
+}
+
+async function rerun(name, args) {
+  const btns = root.querySelectorAll("button"); btns.forEach((b) => (b.disabled = true));
+  const r = await call(name, args);
+  if (r?.structuredContent) {
+    const sc = r.structuredContent;
+    render(sc.tool === "owner_approve" && sc.result ? { view: "send", ...sc.result } : sc);
+    app.updateModelContext?.({ content: [{ type: "text", text: r.content?.[0]?.text ?? "Done from the card." }] }).catch(() => {});
+  } else btns.forEach((b) => (b.disabled = false));
 }
 
 function say(t, bad) { const m = document.getElementById("msg"); if (m) m.innerHTML = `<span class="${bad ? "err" : "muted"}">${esc(t)}</span>`; }
@@ -122,15 +154,6 @@ async function call(name, args) {
     if (r.isError) { say(r.content?.[0]?.text ?? "Failed.", true); return null; }
     return r;
   } catch (e) { say(e?.message ?? String(e), true); return null; }
-}
-
-async function confirm(name, args) {
-  const b = document.getElementById("go"); if (b) { b.disabled = true; b.textContent = "Sending…"; }
-  const r = await call(name, { ...args, confirm: true });
-  if (r?.structuredContent) {
-    render(r.structuredContent);
-    app.updateModelContext?.({ content: [{ type: "text", text: r.content?.[0]?.text ?? "Payment sent from the UI." }] }).catch(() => {});
-  } else if (b) { b.disabled = false; b.textContent = "Retry"; }
 }
 
 app.ontoolresult = (p) => render(p.structuredContent);
