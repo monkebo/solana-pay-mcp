@@ -7,3 +7,5 @@ import "./wallet-send.js";
 import "./approvals.js";
 import "./trade.js";
 import "./token.js";
+import "./external.js";
+import "./x402.js";
