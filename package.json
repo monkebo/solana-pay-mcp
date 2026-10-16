@@ -1,6 +1,6 @@
 {
   "name": "solana-pay-mcp",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Solana agentic wallet: a policy-controlled wallet for AI agents (CLI + MCP + skill) that runs on your own key, Binance Agentic Wallet, any HTTP signer, or a human wallet. Invoices, x402, swaps, limit orders, external signing.",
   "license": "MIT",
   "type": "module",

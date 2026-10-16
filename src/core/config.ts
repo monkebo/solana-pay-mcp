@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 export type Cluster = "mainnet" | "devnet";
 
-export const CLI_VERSION = "0.4.0";
+export const CLI_VERSION = "0.5.0";
 export const SKILL_NAME = "solana-agentic-wallet";
 
 /** Binance-style chain id for Solana, kept so skills written against `baw` map 1:1. */

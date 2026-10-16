@@ -7,8 +7,8 @@ description: |
   switch wallet backend, or any on-chain action on Solana. Drives the `saw` CLI (solana-pay-mcp).
 metadata:
   author: monkebo
-  version: '0.4.0'
-  requiredCliVersion: '0.4.0'
+  version: '0.5.0'
+  requiredCliVersion: '0.5.0'
   openclaw:
     requires:
       bins:
@@ -89,6 +89,7 @@ Policy, approvals and the ledger are the same across all of them. It also **rece
 | Resume agents | `owner fleet resume` | [fleet.md](references/fleet.md) |
 | Kill an agent | `owner fleet kill` | [fleet.md](references/fleet.md) |
 | Change agent policy overrides | `owner fleet set-policy` | [fleet.md](references/fleet.md) |
+| Rename an agent | `owner fleet rename` | [fleet.md](references/fleet.md) |
 | Reissue an agent's session token | `owner fleet token` | [fleet.md](references/fleet.md) |
 | Fleet ledger | `owner fleet ledger` | [fleet.md](references/fleet.md) |
 

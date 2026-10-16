@@ -112,6 +112,22 @@ saw owner fleet set-policy --target <target> --assignments <assignments> --json
 | `--target` | Yes | Agent name, agent id, a role, or `all` |
 | `--assignments` | Yes | field=value pairs |
 
+### `owner fleet rename`
+
+Give an agent a new name and/or role. Keys, balances, sessions and history stay; the address-book entry follows the name.
+
+- Access: owner · **state-changing: confirm with the user first**
+
+```bash
+saw owner fleet rename --target <target> [--name <name>] [--role <role>] --json
+```
+
+| Parameter | Required | Description |
+|---|---|---|
+| `--target` | Yes | Current agent name or id |
+| `--name` | No | New name |
+| `--role` | No | New role |
+
 ### `owner fleet token`
 
 Revoke the agent's current sessions and issue a fresh token (shown once).
