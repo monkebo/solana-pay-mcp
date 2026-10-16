@@ -4,6 +4,7 @@
 //
 //   node scripts/fleet-sim.mjs --vault http://localhost:3000 --owner-token <token> [--agents 20] [--usdc 2] [--rounds 200] [--pace 1500]
 //   node scripts/fleet-sim.mjs ... --reuse        # skip create/fund, reuse agents from ~/.solana-pay-mcp/fleet-sim.json
+//   --everyone                                   # every agent pays, not only buyers (small fleets, Hunger Games)
 //
 // Reads/writes fleet-sim.json (agent names + tokens) so a second run can continue the same fleet.
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -61,7 +62,7 @@ if (process.argv.includes("--reuse") && existsSync(STATE)) {
 const burner = fleet.find((a) => a.role === "buyer");
 console.log(`burner is ${burner.name} (watch it in the console, then kill it)`);
 
-const buyers = fleet.filter((a) => a.role === "buyer");
+const buyers = process.argv.includes("--everyone") ? fleet : fleet.filter((a) => a.role === "buyer");
 const workers = fleet.filter((a) => a.role !== "buyer");
 const pick = (xs) => xs[Math.floor(Math.random() * xs.length)];
 let round = 0, ok = 0, refused = 0;
@@ -69,7 +70,7 @@ let round = 0, ok = 0, refused = 0;
 const tick = async () => {
   round++;
   const payer = round % 3 === 0 ? burner : pick(buyers);
-  const worker = pick(workers);
+  const worker = pick(workers.filter((w) => w !== payer));
   const amount = payer === burner ? (0.2 + Math.random() * 0.2).toFixed(2) : (0.02 + Math.random() * 0.08).toFixed(2);
   const memo = `${pick(JOBS[worker.role])} #${round}`;
   try {
