@@ -124,6 +124,7 @@ for (let round = 0; round < ROUNDS; round++) {
     await tg(`${line} · ${amount} USDC · <a href="${r.explorer}">tx</a>`);
   } catch (e) {
     const why = e.message.split(":")[0];
+    if (why === "LOCKED") { console.log(`${customer.name} still has a payment in flight, skipping`); continue; } // one tx at a time per agent; not news
     const reason = why === "SIMULATION_FAILED" ? "can't afford it 💸" : why === "AGENT_PAUSED" ? "paused by the owner ⏸️" : why === "FLEET_PAUSED" ? "the town is paused ⏸️" : why === "PAYMENT_LIMIT_EXCEEDED" ? "over the per-payment cap 🚫" : why === "DAILY_LIMIT_EXCEEDED" ? "hit the daily limit 🚫" : /429|Too Many/.test(e.message) ? "network busy, skipped 📵" : why;
     await tg(`${line} · ${amount} USDC · ❌ <i>${reason}</i>`);
   }
