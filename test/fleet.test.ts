@@ -27,6 +27,9 @@ const rpc = {
     return send(`${"5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQU".slice(0, 86 - String(sent).length)}${sent}`);
   },
   getSignatureStatuses: (sigs: string[]) => send({ value: sigs.map(() => ({ err: null, confirmationStatus: "confirmed" })) }),
+  // fleet-list reads balances in two batched calls: token accounts (jsonParsed) then owners (lamports)
+  getMultipleAccounts: (keys: string[], cfg?: { encoding?: string }) =>
+    send({ value: keys.map(() => (cfg?.encoding === "jsonParsed" ? { lamports: 2039280n, data: { parsed: { info: { mint: USDC_MINT.mainnet, tokenAmount: { amount: "5000000", decimals: 6 } } } } } : { lamports: 1_000_000_000n })) }),
   getBlockHeight: () => send(900n),
 } as never;
 const fetchMock = (async (url: string) => (String(url).includes("/price/v3") ? new Response(JSON.stringify({ [SOL_MINT]: { usdPrice: 100 }, [USDC_MINT.mainnet]: { usdPrice: 1 } })) : new Response("[]"))) as unknown as typeof fetch;
