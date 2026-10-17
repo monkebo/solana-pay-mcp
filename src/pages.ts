@@ -93,7 +93,7 @@ poll();setInterval(poll,3000);
 
 /** Public live board: leaderboard by USDC and the latest payments. Read-only, works as a Telegram Mini App. */
 export function boardHtml(publicUrl: string): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Agent economy</title><style>${CSS}
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Agent economy</title><script src="https://telegram.org/js/telegram-web-app.js"></script><style>${CSS}
 main{max-width:560px}
 .lead{display:flex;flex-direction:column;gap:8px}
 .agent{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
@@ -123,6 +123,6 @@ document.getElementById('feed').className='feed';
 document.getElementById('feed').innerHTML=d.ledger.slice(0,30).map(r=>'<div class="ev"><time>'+e(r.at.slice(11,19))+'</time><span><b>'+e(r.agent)+'</b> → <b>'+e(r.to||'')+'</b>'+(r.memo?' <span class="muted">'+e(r.memo)+'</span>':'')+(/FAILED|REJECTED/.test(r.status)?' <span class="bad">✗ '+e((r.error||r.status).split(':')[0].slice(0,40))+'</span>':r.status==='CONFIRMED'?' ✓':'')+'</span><span class="amt">'+(r.amount?e(r.amount)+' '+e(r.token||''):'$'+e(r.usd??0))+'</span></div>').join('')||'<span class="muted">no payments yet</span>';
 }catch(err){document.getElementById('sum').textContent=err.message}}
 load();setInterval(load,4000);
-if(window.Telegram&&Telegram.WebApp){Telegram.WebApp.ready();Telegram.WebApp.expand()}
-</script><script src="https://telegram.org/js/telegram-web-app.js"></script></main></body></html>`;
+const tg=window.Telegram&&Telegram.WebApp;if(tg&&tg.initData){tg.ready();tg.expand();if(tg.themeParams.bg_color){document.body.style.background=tg.themeParams.bg_color;document.body.style.color=tg.themeParams.text_color||''}}
+</script></main></body></html>`;
 }
