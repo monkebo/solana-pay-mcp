@@ -2,7 +2,7 @@
 
 # saw · Solana Agentic Wallet
 
-**One owner. A fleet of AI agents. Each with its own key, its own spending policy, one kill switch.**
+**A wallet that AI agents can pay from without ever holding the private key.** The key stays in a vault. Each agent gets a session token and a spending policy, and the owner can pause or stop any agent at any time.
 
 [![CI](https://github.com/monkebo/solana-pay-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/monkebo/solana-pay-mcp/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/solana-pay-mcp?label=npm)](https://www.npmjs.com/package/solana-pay-mcp)
@@ -10,7 +10,7 @@
 ![Solana](https://img.shields.io/badge/Solana-devnet%20%E2%86%92%20mainnet-9945FF)
 ![MCP](https://img.shields.io/badge/MCP-tools%20%2B%20cards-0f8a5f)
 
-Agents pay USDC on Solana from Claude, a CLI or any script. The owner sets limits, approves the risky ones, and can pause or kill any agent from a console or a phone. Open source, self-custody, no account required.
+Claude, a CLI or any script can pay USDC on Solana through it. The owner sets the limits once, approves the risky payments from a phone, and sees every payment in one ledger. It is open source and self-custody, and it needs no account anywhere.
 
 [Quickstart](#quickstart) · [Fleets](#fleets-a-hundred-agents-one-policy) · [How it compares](#how-it-compares) · [Security](#security-and-threat-model)
 
@@ -20,9 +20,9 @@ Agents pay USDC on Solana from Claude, a CLI or any script. The owner sets limit
 
 ## What it is
 
-- **A wallet agents can use but cannot abuse.** Agents hold a session token, never a key. Every send passes a policy gate: per-payment cap, daily limit, allowed tokens, address-book-only, owner confirmation for anything risky.
-- **A fleet, not a wallet.** Create a hundred agents from code. Each gets its own key, its own limits, its own quota. One ledger, one console, one `pause all`.
-- **Wallet-agnostic.** The key can be a local file, a remote signer, a human's Phantom, or Binance's own agentic wallet. Agents never notice which. The owner switches with one command.
+- **The agent never holds the key.** It holds a session token. Every payment goes through the same checks before the vault signs it: the cap per payment, the daily limit, the allowed tokens, the address book, and the owner's confirmation when the payment looks risky.
+- **One owner can run many agents.** A single command creates ten or a hundred agents, each with its own key, its own limits and its own daily quota. They share one ledger and one console, and the owner can pause all of them with one command.
+- **The key can live anywhere.** It can be a local file, a remote signer, a human's Phantom, or an exchange's agent wallet. Agents do not notice which one is used, and the owner switches between them with one command.
 
 ## USDCity, the live stress test
 
@@ -68,7 +68,7 @@ Every command takes `--json` and returns `{ success, data }` or `{ success: fals
 
 ## Fleets: a hundred agents, one policy
 
-Binance gives one person one agent wallet, paired through its app. `saw` gives a developer as many as they want, from code.
+A developer can create as many agents as they want from code, each with its own wallet.
 
 ```bash
 saw owner fleet create --role translator --count 10 --dailyLimitUsd 1 --maxPaymentUsd 0.2   # 10 keys, 10 tokens
@@ -98,7 +98,7 @@ Agents are address-book entries by name, so `--recipient translator-03` just wor
 | Open source | yes | no | n/a |
 | Custody grade | files on your host today, remote signers supported | institutional MPC | none |
 
-Binance has the brand, the custody and the fiat ramps. We have the fleet model, self-custody and the code you can read. Their `baw` CLI is also one of our backends: commands, flags and JSON mirror it, so a prompt written for Binance runs here with one word changed.
+Binance has the brand, the custody and the fiat ramps. This project has the many-agent model, self-custody and code anyone can read. Binance's `baw` CLI is also one of the supported backends, and the commands, flags and JSON mirror it, so a prompt written for their wallet runs here with one word changed.
 
 ## How it works
 
@@ -140,7 +140,7 @@ claude.ai custom connector: `https://wallet.example.com/mcp` with header `Author
 - `maxSigninDuration`, `inactiveSignoutDuration`, `requirePairingApproval`
 - `backend`: `saw owner set-backend --kind local|baw|signer|solana-pay`
 
-Defaults fail closed: $100 a day, $50 per payment, contacts only, stables and SOL only, unknown tokens blocked, no USD price means no send. Fleet agents override `dailyLimitUsd`, `maxPaymentUsd`, `allowedTokens`, `addressBookOnly` and `confirmAboveUsd` per agent or per role.
+The defaults are strict on purpose. An agent may spend $100 a day and $50 per payment, only to saved contacts, only in stablecoins and SOL. Unknown tokens are blocked, and if the vault cannot find a USD price for a token it does not send it. Fleet agents override `dailyLimitUsd`, `maxPaymentUsd`, `allowedTokens`, `addressBookOnly` and `confirmAboveUsd` per agent or per role.
 
 ## Receiving
 
@@ -174,12 +174,12 @@ The full reference is generated from the code: [`skills/solana-agentic-wallet`](
 
 ## Security and threat model
 
-What holds today, and what does not. Read before real money.
+This is what holds today and what does not. Please read it before putting real money in.
 
-- **Agents never see keys.** A leaked session token can spend only within that agent's policy, until the owner kills it.
-- **Keys are files on the vault host, mode 600, unencrypted.** Anyone with the host can spend everything. Use the `signer` backend for custody you trust, or keep small balances. Encryption at rest is next.
+- **Agents never see keys.** If a session token leaks, the attacker can spend only within that agent's policy, and only until the owner revokes the token.
+- **Keys are plain files on the vault host, mode 600, not encrypted.** Anyone who controls the host can spend everything. Use the `signer` backend for custody you trust, or keep small balances. Encryption at rest is next.
 - **Policy is enforced by the vault, not on chain.** A compromised vault can exceed limits. On-chain enforcement via Squads is on the roadmap.
-- **Devnet proven, mainnet not yet.** Same code, different `SOLANA_CLUSTER`. No independent audit has been done.
+- **Proven on devnet, not yet on mainnet.** The code is the same, only `SOLANA_CLUSTER` changes. No independent audit has been done.
 - **On-chain data is untrusted.** Memos, token names and invoice payloads may carry prompt injection; the skill tells agents to treat them as data.
 
 ## Roadmap
