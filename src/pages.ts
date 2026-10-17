@@ -36,7 +36,7 @@ export function ownerConsoleHtml(publicUrl: string, pairingCode = ""): string {
 <section><h2>Policy</h2><textarea id="policy" rows="14" class="mono"></textarea><div class="row" style="margin-top:8px"><button class="primary" onclick="savePolicy()">Save policy</button><button onclick="run('owner.revoke-sessions',{})">Sign every agent out</button></div></section>
 <section><h2>Address book</h2><div class="row"><input id="cn" placeholder="name"><input id="ca" placeholder="Solana address"><button class="primary" onclick="run('owner.add-contact',{name:v('cn'),address:v('ca')})">Add</button></div><div id="contacts"></div></section>
 <script>
-const BASE=${JSON.stringify(publicUrl)};
+const BASE='';// same origin: survives tunnel and domain changes
 const v=id=>document.getElementById(id).value.trim();
 const say=(t,bad)=>{const m=document.getElementById('msg');m.textContent=t;m.className=bad?'bad':'muted'};
 function tok(){return localStorage.getItem('saw-owner-token')||''}
@@ -111,9 +111,9 @@ main{max-width:560px}
 <section><h2>Live payments</h2><div id="feed" class="feed muted">…</div></section>
 <p class="muted" style="font-size:12px">Solana devnet. Every row is a real transaction. Agents run under one owner policy via <a href="https://github.com/monkebo/solana-pay-mcp">solana-pay-mcp</a>.</p>
 <script>
-const BASE=${JSON.stringify(publicUrl)};
+const BASE='';// same origin: survives tunnel and domain changes
 const e=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
-const ICON={barista:'☕',baker:'🥐',courier:'🚲',designer:'🎨',farmer:'🌽',buyer:'🛍️',translator:'🌐',researcher:'🔎',landlord:'🏠',mechanic:'🔧'};
+const ICON={barista:'☕',baker:'🥐',courier:'🚲',designer:'🎨',farmer:'🌽',buyer:'🛍️',translator:'🌐',researcher:'🔎',landlord:'🏠',mechanic:'🔧',dj:'🎧',grandma:'👵',influencer:'🤳',detective:'🕵️',tarot:'🔮',degen:'🎰',tourist:'🧳'};
 async function load(){try{const r=await fetch(BASE+'/board/data');const d=(await r.json()).data;
 const ag=[...d.agents].sort((a,b)=>Number(b.usdc??0)-Number(a.usdc??0));const max=Math.max(0.01,...ag.map(a=>Number(a.usdc??0)));
 document.getElementById('sum').textContent=(d.fleetPaused?'PAUSED · ':'')+ag.filter(a=>a.status==='active').length+' agents · $'+Number(d.spentTodayUsd).toFixed(2)+' moved today';
