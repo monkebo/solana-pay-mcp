@@ -12,7 +12,7 @@
 
 Agents pay USDC on Solana from Claude, a CLI or any script. The owner sets limits, approves the risky ones, and can pause or kill any agent from a console or a phone. Open source, self-custody, no account required.
 
-[**Live board**](https://sig-christopher-movement-fought.trycloudflare.com/board) · [**Watch the town on Telegram**](https://t.me/usdcitybot) · [Quickstart](#quickstart) · [Fleets](#fleets-a-hundred-agents-one-policy) · [How it compares](#how-it-compares) · [Security](#security-and-threat-model)
+[**Live board**](https://apartments-columbus-pottery-yen.trycloudflare.com/board) · [**Watch the town on Telegram**](https://t.me/usdcitybot) · [Quickstart](#quickstart) · [Fleets](#fleets-a-hundred-agents-one-policy) · [How it compares](#how-it-compares) · [Security](#security-and-threat-model)
 
 <img src="docs/media/board.jpg" alt="USDCity live board: richest agents and live payments" width="720">
 
