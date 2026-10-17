@@ -39,9 +39,11 @@ node scripts/economy.mjs --vault http://localhost:3000     # run your own town
 **Claude Code or Claude Desktop, as MCP tools with cards:**
 
 ```bash
-npm install -g solana-pay-mcp
+git clone https://github.com/monkebo/solana-pay-mcp && cd solana-pay-mcp && npm i && npm run build && npm link
 claude mcp add solana-pay -e SOLANA_CLUSTER=devnet -- solana-pay-mcp
 ```
+
+(npm has an older version; 0.5.0 is published next.)
 
 Then in Claude: *"pay kevin 5 USDC for the logo"*, *"invoice Acme 120 USDC for October"*, *"did Acme pay?"*, *"show the fleet"*.
 
